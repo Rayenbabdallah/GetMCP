@@ -6,20 +6,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AppModule = void 0;
+exports.ProxyModule = void 0;
 const common_1 = require("@nestjs/common");
-const app_controller_1 = require("./app.controller");
-const app_service_1 = require("./app.service");
-const generator_module_1 = require("./generator/generator.module");
-const proxy_module_1 = require("./proxy/proxy.module");
-let AppModule = class AppModule {
+const proxy_service_1 = require("./proxy.service");
+const proxy_controller_1 = require("./proxy.controller");
+let ProxyModule = class ProxyModule {
 };
-exports.AppModule = AppModule;
-exports.AppModule = AppModule = __decorate([
+exports.ProxyModule = ProxyModule;
+exports.ProxyModule = ProxyModule = __decorate([
     (0, common_1.Module)({
-        imports: [generator_module_1.GeneratorModule, proxy_module_1.ProxyModule],
-        controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        controllers: [proxy_controller_1.ProxyController],
+        providers: [proxy_service_1.ProxyService],
+        exports: [proxy_service_1.ProxyService],
     })
-], AppModule);
-//# sourceMappingURL=app.module.js.map
+], ProxyModule);
+//# sourceMappingURL=proxy.module.js.map
