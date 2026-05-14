@@ -93,9 +93,9 @@ function App() {
         {activeTab === 'generator' && (
           <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
             <header style={{ marginBottom: '3rem' }} className="animate-fade-in">
-              <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Agent Infrastructure</h1>
-              <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-                Automatically generate secure internal and external MCP layers from your APIs.
+              <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 0 10px var(--primary-glow)' }} className="primary-gradient-text">Agent Infrastructure</h1>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', fontFamily: 'Fira Code, monospace' }}>
+                > AUTOMATICALLY GENERATE SECURE INTERNAL AND EXTERNAL MCP LAYERS FROM YOUR APIS_
               </p>
             </header>
 
@@ -232,9 +232,9 @@ function App() {
           <div style={{ maxWidth: '1000px', margin: '0 auto' }} className="animate-fade-in">
             <header style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Policy Control Plane</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-                  Define semantic rules for what AI agents are allowed to do.
+                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 0 10px var(--primary-glow)' }} className="primary-gradient-text">Policy Control Plane</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', fontFamily: 'Fira Code, monospace' }}>
+                  > DEFINE SEMANTIC RULES FOR WHAT AI AGENTS ARE ALLOWED TO DO_
                 </p>
               </div>
               <button className="btn btn-primary">
