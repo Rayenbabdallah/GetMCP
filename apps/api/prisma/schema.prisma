@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enterprise Organizations
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  authType  String   // "Okta", "Auth0", "Custom"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specs     OpenApiSpec[]
+  policies  PolicyRule[]
+  agents    AgentIdentity[]
+}
+
+// Stored OpenAPI Specs
+model OpenApiSpec {
+  id             String       @id @default(cuid())
+  organizationId String
+  url            String
+  rawJson        Json
+  internalCount  Int
+  externalCount  Int
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+// Dynamic Policy Execution Rules
+model PolicyRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String
+  ruleType       String       // "MUTATION_APPROVAL", "RATE_LIMIT", "AUDIT"
+  targetMethod   String       // "POST", "PUT", "*"
+  targetPath     String       // "/v1/refunds", "*"
+  action         String       // "BLOCK", "SLACK_APPROVAL", "REQUIRE_HEADER"
+  actionConfig   Json         // e.g. {"channel": "#finance-ops"}
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+}
+
+// Authorized Agents
+model AgentIdentity {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  apiKeyHash     String
+  sourceType     String       // "internal_mcp", "external_mcp"
+  tenantScope    String?      // Optional tenant ID for external agents
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  logs           AuditLog[]
+}
+
+// Tamper-proof execution ledger
+model AuditLog {
+  id             String        @id @default(cuid())
+  agentId        String
+  method         String
+  path           String
+  reasoning      String?
+  actionTaken    String        // "EXECUTED", "BLOCKED", "AWAITING_APPROVAL"
+  latencyMs      Float
+  timestamp      DateTime      @default(now())
+
+  agent          AgentIdentity @relation(fields: [agentId], references: [id])
+}
