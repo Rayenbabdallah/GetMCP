@@ -5,28 +5,29 @@ services:
     image: postgres:15-alpine
     container_name: getmcp_db
     environment:
-      POSTGRES_USER: getmcp
-      POSTGRES_PASSWORD: beta_password_secure
-      POSTGRES_DB: getmcp_platform
+      POSTGRES_USER: ${POSTGRES_USER:-getmcp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-getmcp_platform}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - getmcp_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U getmcp -d getmcp_platform"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-getmcp} -d ${POSTGRES_DB:-getmcp_platform}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   api:
-    build: 
+    build:
       context: .
       dockerfile: apps/api/Dockerfile
     container_name: getmcp_api
     environment:
-      - DATABASE_URL=postgresql://getmcp:beta_password_secure@postgres:5432/getmcp_platform?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-getmcp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-getmcp_platform}?schema=public
       - NODE_ENV=production
       - PORT=3000
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
     ports:
       - "3000:3000"
     depends_on:
@@ -39,7 +40,7 @@ services:
       dockerfile: apps/web/Dockerfile
     container_name: getmcp_web
     environment:
-      - VITE_API_URL=http://localhost:3000
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
     ports:
       - "80:80"
     depends_on:

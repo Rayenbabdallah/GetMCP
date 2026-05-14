@@ -1,4 +1,5 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { PrismaService } from '../prisma.service';
 
 export interface AgentRequest {
   method: string;
@@ -7,6 +8,7 @@ export interface AgentRequest {
   tenantId?: string;
   headers?: Record<string, string>;
   body?: any;
+  organizationId?: string;
 }
 
 export interface ProxyResponse {
@@ -20,47 +22,65 @@ export interface ProxyResponse {
 export class ProxyService {
   private readonly logger = new Logger(ProxyService.name);
 
-  // In a real $1B system, these policies are loaded dynamically from a DB or OPA Rego engine.
-  // For the MVP, we hardcode the logic representing the rules in the UI.
+  constructor(private readonly prisma: PrismaService) {}
 
   async interceptAndExecute(req: AgentRequest): Promise<ProxyResponse> {
-    const { method, path, source, headers, tenantId } = req;
+    const { method, path, source, headers, tenantId, organizationId } = req;
     this.logger.log(`Intercepting [${method}] ${path} from ${source}`);
 
     const startTime = process.hrtime();
 
-    // RULE 1: AUDIT - Mandatory Context Logging
-    if (source === 'external_mcp' && (!headers || !headers['x-agent-reasoning'])) {
-      this.logger.warn(`Blocked [${method}] ${path} - Missing Audit Context`);
-      throw new HttpException({
-        allowed: false,
-        status: 'BLOCKED',
-        reason: 'Policy Violation: Missing x-agent-reasoning header required for audit trail.'
-      }, HttpStatus.FORBIDDEN);
-    }
+    // In a real scenario, we'd look up the rules by organizationId
+    // For local beta testing without auth, we'll fetch all active rules
+    const activeRules = await this.prisma.policyRule.findMany({
+      where: { isActive: true }
+    });
 
-    // RULE 2: MUTATION - Require Human Approval for Refunds
-    if (source === 'external_mcp' && method.toUpperCase() === 'POST' && path.includes('/refunds')) {
-      this.logger.warn(`Intercepted [${method}] ${path} - Triggering Slack Approval`);
+    for (const rule of activeRules) {
+      // Check if this rule applies to the current request
+      const methodMatches = rule.targetMethod === '*' || rule.targetMethod.toUpperCase() === method.toUpperCase();
+      // Simple path matching for MVP. Could be regex in future.
+      const pathMatches = rule.targetPath === '*' || path.includes(rule.targetPath);
       
-      // Simulate dispatching a webhook to Slack
-      this.dispatchApprovalWebhook('#finance-ops', req);
+      // External MCP is usually the target of these policies
+      if (source === 'external_mcp' && methodMatches && pathMatches) {
+        
+        switch (rule.ruleType) {
+          case 'AUDIT':
+            if (!headers || !headers['x-agent-reasoning']) {
+              this.logger.warn(`Blocked by Rule [${rule.name}] - Missing Audit Context`);
+              throw new HttpException({
+                allowed: false,
+                status: 'BLOCKED',
+                reason: `Policy Violation: ${rule.description}`
+              }, HttpStatus.FORBIDDEN);
+            }
+            break;
 
-      return {
-        allowed: false,
-        status: 'AWAITING_APPROVAL',
-        reason: 'Policy Engine intercepted execution. Awaiting explicit human approval from #finance-ops in Slack.'
-      };
-    }
+          case 'MUTATION_APPROVAL':
+            this.logger.warn(`Intercepted by Rule [${rule.name}] - Triggering Approval`);
+            
+            const config = rule.actionConfig as any;
+            this.dispatchApprovalWebhook(config?.channel || '#ops', req);
 
-    // RULE 3: RATE LIMIT & ISOLATION
-    if (source === 'external_mcp' && !tenantId && (method === 'POST' || method === 'PUT')) {
-       this.logger.error(`Blocked [${method}] ${path} - Missing Tenant Isolation`);
-       throw new HttpException({
-        allowed: false,
-        status: 'BLOCKED',
-        reason: 'Policy Violation: All mutations from external agents must be scoped with a tenantId.'
-      }, HttpStatus.FORBIDDEN);
+            return {
+              allowed: false,
+              status: 'AWAITING_APPROVAL',
+              reason: `Policy Engine intercepted execution: ${rule.description}`
+            };
+
+          case 'RATE_LIMIT':
+            if (!tenantId) {
+              this.logger.error(`Blocked by Rule [${rule.name}] - Missing Tenant Isolation`);
+              throw new HttpException({
+                allowed: false,
+                status: 'BLOCKED',
+                reason: `Policy Violation: ${rule.description}`
+              }, HttpStatus.FORBIDDEN);
+            }
+            break;
+        }
+      }
     }
 
     // Simulate proxying to the actual downstream enterprise API

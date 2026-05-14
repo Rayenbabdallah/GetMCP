@@ -1,9 +1,13 @@
-import { Controller, Post, Body, Headers } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Get, Patch, Param } from '@nestjs/common';
 import { ProxyService, AgentRequest } from './proxy.service';
+import { PrismaService } from '../prisma.service';
 
 @Controller('proxy')
 export class ProxyController {
-  constructor(private readonly proxyService: ProxyService) {}
+  constructor(
+    private readonly proxyService: ProxyService,
+    private readonly prisma: PrismaService
+  ) {}
 
   @Post('execute')
   async executeAgentAction(
@@ -24,5 +28,20 @@ export class ProxyController {
     };
 
     return await this.proxyService.interceptAndExecute(req);
+  }
+
+  @Get('policies')
+  async getPolicies() {
+    return this.prisma.policyRule.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  @Patch('policies/:id')
+  async togglePolicy(@Param('id') id: string, @Body('isActive') isActive: boolean) {
+    return this.prisma.policyRule.update({
+      where: { id },
+      data: { isActive }
+    });
   }
 }

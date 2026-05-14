@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './index.css';
 
 function App() {
@@ -8,6 +8,16 @@ function App() {
   const [generated, setGenerated] = useState(false);
   const [internalCount, setInternalCount] = useState(0);
   const [externalCount, setExternalCount] = useState(0);
+  const [policies, setPolicies] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeTab === 'policies') {
+      fetch('http://localhost:3000/proxy/policies')
+        .then(res => res.json())
+        .then(data => setPolicies(data))
+        .catch(err => console.error(err));
+    }
+  }, [activeTab]);
 
   const handleGenerate = async () => {
     if (!specUrl) return;
@@ -95,7 +105,7 @@ function App() {
             <header style={{ marginBottom: '3rem' }} className="animate-fade-in">
               <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 0 10px var(--primary-glow)' }} className="primary-gradient-text">Agent Infrastructure</h1>
               <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', fontFamily: 'Fira Code, monospace' }}>
-                > AUTOMATICALLY GENERATE SECURE INTERNAL AND EXTERNAL MCP LAYERS FROM YOUR APIS_
+                {'>'} AUTOMATICALLY GENERATE SECURE INTERNAL AND EXTERNAL MCP LAYERS FROM YOUR APIS_
               </p>
             </header>
 
@@ -234,7 +244,7 @@ function App() {
               <div>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '2px', textShadow: '0 0 10px var(--primary-glow)' }} className="primary-gradient-text">Policy Control Plane</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', fontFamily: 'Fira Code, monospace' }}>
-                  > DEFINE SEMANTIC RULES FOR WHAT AI AGENTS ARE ALLOWED TO DO_
+                  {'>'} DEFINE SEMANTIC RULES FOR WHAT AI AGENTS ARE ALLOWED TO DO_
                 </p>
               </div>
               <button className="btn btn-primary">
@@ -245,57 +255,58 @@ function App() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {/* Rule 1 */}
-                <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid #ef4444' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>MUTATION</span>
-                      <h3 style={{ fontSize: '1.1rem' }}>Require Human Approval for Refunds</h3>
-                    </div>
-                    <div className="toggle" style={{ width: '40px', height: '20px', background: 'var(--primary)', borderRadius: '10px', position: 'relative' }}>
-                      <div style={{ width: '16px', height: '16px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', right: '2px' }}></div>
-                    </div>
-                  </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-                    Any agent attempting to hit <code>POST /v1/refunds</code> via the External MCP must receive explicit Slack approval from the <code>@finance-ops</code> team before execution.
-                  </p>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', fontFamily: 'monospace', fontSize: '0.8rem', color: '#8b5cf6' }}>
-                    IF method == "POST" AND path == "/v1/refunds" AND source == "external_mcp"<br/>
-                    THEN invoke_webhook("slack_approval", {"{"}"channel": "#finance-ops"{"}"})
-                  </div>
-                </div>
+                {policies.map((policy) => {
+                  let borderColor = '#3b82f6';
+                  let tagBg = 'rgba(59, 130, 246, 0.1)';
+                  
+                  if (policy.ruleType === 'MUTATION_APPROVAL') {
+                    borderColor = 'var(--danger)';
+                    tagBg = 'rgba(239, 68, 68, 0.1)';
+                  } else if (policy.ruleType === 'RATE_LIMIT') {
+                    borderColor = 'var(--warning)';
+                    tagBg = 'rgba(245, 158, 11, 0.1)';
+                  } else if (policy.ruleType === 'AUDIT') {
+                    borderColor = 'var(--success)';
+                    tagBg = 'rgba(34, 197, 94, 0.1)';
+                  }
 
-                {/* Rule 2 */}
-                <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid #f59e0b' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>RATE LIMIT</span>
-                      <h3 style={{ fontSize: '1.1rem' }}>Tenant Isolation Quota</h3>
+                  return (
+                    <div key={policy.id} className="glass-panel" style={{ padding: '1.5rem', borderLeft: `4px solid ${borderColor}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ background: tagBg, color: borderColor, padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
+                            {policy.ruleType.replace('_', ' ')}
+                          </span>
+                          <h3 style={{ fontSize: '1.1rem' }}>{policy.name}</h3>
+                        </div>
+                        <div 
+                          className="toggle" 
+                          style={{ width: '40px', height: '20px', background: policy.isActive ? 'var(--primary)' : 'var(--text-muted)', borderRadius: '10px', position: 'relative', cursor: 'pointer' }}
+                          onClick={async () => {
+                            const newStatus = !policy.isActive;
+                            await fetch(`http://localhost:3000/proxy/policies/${policy.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ isActive: newStatus })
+                            });
+                            setPolicies(policies.map(p => p.id === policy.id ? { ...p, isActive: newStatus } : p));
+                          }}
+                        >
+                          <div style={{ width: '16px', height: '16px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', left: policy.isActive ? '22px' : '2px', transition: 'left 0.2s' }}></div>
+                        </div>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: policy.actionConfig ? '1rem' : '0' }}>
+                        {policy.description}
+                      </p>
+                      {policy.actionConfig && Object.keys(policy.actionConfig).length > 0 && (
+                        <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '4px', borderLeft: '2px solid rgba(14, 165, 233, 0.5)' }} className="mono text-sm">
+                          IF method == "{policy.targetMethod}" AND path == "{policy.targetPath}"<br/>
+                          THEN invoke_webhook("{policy.action.toLowerCase()}", {JSON.stringify(policy.actionConfig)})
+                        </div>
+                      )}
                     </div>
-                    <div className="toggle" style={{ width: '40px', height: '20px', background: 'var(--primary)', borderRadius: '10px', position: 'relative' }}>
-                      <div style={{ width: '16px', height: '16px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', right: '2px' }}></div>
-                    </div>
-                  </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    Agents acting on behalf of a tenant cannot exceed 50 read queries per minute to prevent DB monopolization.
-                  </p>
-                </div>
-
-                {/* Rule 3 */}
-                <div className="glass-panel" style={{ padding: '1.5rem', borderLeft: '4px solid #10b981' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>AUDIT</span>
-                      <h3 style={{ fontSize: '1.1rem' }}>Mandatory Context Logging</h3>
-                    </div>
-                    <div className="toggle" style={{ width: '40px', height: '20px', background: 'var(--primary)', borderRadius: '10px', position: 'relative' }}>
-                      <div style={{ width: '16px', height: '16px', background: 'white', borderRadius: '50%', position: 'absolute', top: '2px', right: '2px' }}></div>
-                    </div>
-                  </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                    All requests must include a valid <code>X-Agent-Reasoning</code> header detailing why the action was taken.
-                  </p>
-                </div>
+                  );
+                })}
               </div>
 
               {/* Sidebar stats */}
