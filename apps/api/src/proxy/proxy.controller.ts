@@ -1,16 +1,18 @@
-import { Controller, Post, Body, Headers, Get, Patch, Param } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Get, Patch, Param, NotFoundException } from '@nestjs/common';
 import { ProxyService, AgentRequest } from './proxy.service';
 import { PrismaService } from '../prisma.service';
+import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 
 @Controller('proxy')
 export class ProxyController {
   constructor(
     private readonly proxyService: ProxyService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('execute')
   async executeAgentAction(
+    @CurrentOrg() org: AuthContext,
     @Body() body: any,
     @Headers('x-agent-source') sourceHeader: string,
     @Headers('x-agent-reasoning') reasoningHeader: string,
@@ -21,27 +23,31 @@ export class ProxyController {
       path: body.path,
       source: (sourceHeader as 'internal_mcp' | 'external_mcp') || 'external_mcp',
       tenantId: tenantHeader,
-      headers: {
-        'x-agent-reasoning': reasoningHeader
-      },
-      body: body.payload
+      headers: { 'x-agent-reasoning': reasoningHeader },
+      body: body.payload,
+      organizationId: org.organizationId,
     };
-
-    return await this.proxyService.interceptAndExecute(req);
+    return this.proxyService.interceptAndExecute(req);
   }
 
   @Get('policies')
-  async getPolicies() {
+  getPolicies(@CurrentOrg() org: AuthContext) {
     return this.prisma.policyRule.findMany({
-      orderBy: { createdAt: 'desc' }
+      where: { organizationId: org.organizationId },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   @Patch('policies/:id')
-  async togglePolicy(@Param('id') id: string, @Body('isActive') isActive: boolean) {
-    return this.prisma.policyRule.update({
-      where: { id },
-      data: { isActive }
+  async togglePolicy(
+    @CurrentOrg() org: AuthContext,
+    @Param('id') id: string,
+    @Body('isActive') isActive: boolean,
+  ) {
+    const existing = await this.prisma.policyRule.findFirst({
+      where: { id, organizationId: org.organizationId },
     });
+    if (!existing) throw new NotFoundException();
+    return this.prisma.policyRule.update({ where: { id }, data: { isActive } });
   }
 }

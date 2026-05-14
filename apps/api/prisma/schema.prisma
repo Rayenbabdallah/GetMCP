@@ -18,6 +18,24 @@ model Organization {
   specs     OpenApiSpec[]
   policies  PolicyRule[]
   agents    AgentIdentity[]
+  apiKeys   ApiKey[]
+}
+
+// API keys for authenticating callers as a specific Organization.
+// The plaintext key is shown to the user exactly once at mint time.
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String       // human label, e.g. "ci-server", "dashboard"
+  prefix         String       @unique // first 8 chars of plaintext, used for fast lookup
+  hash           String       // scrypt hash of the full plaintext key
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 // Stored OpenAPI Specs
@@ -31,7 +49,9 @@ model OpenApiSpec {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }
 
 // Dynamic Policy Execution Rules
@@ -49,7 +69,9 @@ model PolicyRule {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
 }
 
 // Authorized Agents
@@ -62,8 +84,10 @@ model AgentIdentity {
   tenantScope    String?      // Optional tenant ID for external agents
   createdAt      DateTime     @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   logs           AuditLog[]
+
+  @@index([organizationId])
 }
 
 // Tamper-proof execution ledger
@@ -77,5 +101,7 @@ model AuditLog {
   latencyMs      Float
   timestamp      DateTime      @default(now())
 
-  agent          AgentIdentity @relation(fields: [agentId], references: [id])
+  agent          AgentIdentity @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, timestamp])
 }

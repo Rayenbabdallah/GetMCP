@@ -26,14 +26,18 @@ export class ProxyService {
 
   async interceptAndExecute(req: AgentRequest): Promise<ProxyResponse> {
     const { method, path, source, headers, tenantId, organizationId } = req;
-    this.logger.log(`Intercepting [${method}] ${path} from ${source}`);
+    if (!organizationId) {
+      throw new HttpException(
+        { allowed: false, status: 'BLOCKED', reason: 'Missing organization context' },
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    this.logger.log(`Intercepting [${method}] ${path} from ${source} (org=${organizationId})`);
 
     const startTime = process.hrtime();
 
-    // In a real scenario, we'd look up the rules by organizationId
-    // For local beta testing without auth, we'll fetch all active rules
     const activeRules = await this.prisma.policyRule.findMany({
-      where: { isActive: true }
+      where: { organizationId, isActive: true },
     });
 
     for (const rule of activeRules) {
