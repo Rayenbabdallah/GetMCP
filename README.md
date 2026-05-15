@@ -84,6 +84,29 @@ curl -X POST http://localhost:3000/proxy/execute \
 
 The upstream's status code, headers, and body stream through faithfully. Upstream timeouts return `504`, connection errors return `502`.
 
+## Agents
+
+`POST /proxy/execute` requires the caller to assert which agent they're acting as via the `x-agent-id` header. The agent must belong to the authenticated org and not be revoked or disabled.
+
+```bash
+KEY=<your-gmcp_-key>
+# create an agent
+AGENT_ID=$(curl -s -X POST http://localhost:3000/agents \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"name":"my-bot","source":"internal_mcp"}' | jq -r .id)
+
+# use it
+curl -X POST http://localhost:3000/proxy/execute \
+  -H "Authorization: Bearer $KEY" \
+  -H "x-agent-id: $AGENT_ID" \
+  -H "x-agent-source: internal_mcp" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"GET","path":"/v1/charges"}'
+
+# revoke (takes effect within 5s on this instance)
+curl -X DELETE http://localhost:3000/agents/$AGENT_ID -H "Authorization: Bearer $KEY"
+```
+
 ## Audit ledger
 
 Every proxy call writes one tamper-evident `AuditLog` row to a per-organization hash chain. Quick checks:

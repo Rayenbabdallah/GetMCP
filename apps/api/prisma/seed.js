@@ -70,14 +70,39 @@ async function main() {
     ],
   });
 
+  const internalAgent = await prisma.agentIdentity.create({
+    data: {
+      organizationId: org.id,
+      name: 'seed-internal-agent',
+      source: 'internal_mcp',
+    },
+  });
+  const externalAgent = await prisma.agentIdentity.create({
+    data: {
+      organizationId: org.id,
+      name: 'seed-external-agent',
+      source: 'external_mcp',
+    },
+  });
+
   console.log('Database seeded.');
   console.log(`Organization id: ${org.id}`);
+  console.log(`Internal agent id: ${internalAgent.id}`);
+  console.log(`External agent id: ${externalAgent.id}`);
   console.log('');
   console.log('API key (store it now — it will not be shown again):');
   console.log(`  ${key.plaintext}`);
   console.log('');
   console.log('Test it:');
   console.log(`  curl -H "Authorization: Bearer ${key.plaintext}" http://localhost:3000/proxy/policies`);
+  console.log('');
+  console.log('Proxy a request as the internal agent:');
+  console.log(`  curl -X POST http://localhost:3000/proxy/execute \\`);
+  console.log(`    -H "Authorization: Bearer ${key.plaintext}" \\`);
+  console.log(`    -H "x-agent-id: ${internalAgent.id}" \\`);
+  console.log(`    -H "x-agent-source: internal_mcp" \\`);
+  console.log(`    -H "Content-Type: application/json" \\`);
+  console.log(`    -d '{"method":"GET","path":"/v1/charges"}'`);
 }
 
 main()

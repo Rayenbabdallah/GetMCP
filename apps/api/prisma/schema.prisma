@@ -86,15 +86,20 @@ model PolicyRule {
   @@index([organizationId, isActive])
 }
 
-// Authorized Agents
+// Authorized Agents — identities the proxy recognizes via x-agent-id header.
+// Org-level ApiKey auth still applies; the agent identity is an additional
+// caller assertion that scopes the call to a known, revocable principal.
 model AgentIdentity {
   id             String       @id @default(cuid())
   organizationId String
   name           String
-  apiKeyHash     String
-  sourceType     String       // "internal_mcp", "external_mcp"
-  tenantScope    String?      // Optional tenant ID for external agents
+  source         String       // "internal_mcp" | "external_mcp"
+  tenantScope    String?      // when set, x-tenant-id must match
+  enabled        Boolean      @default(true)
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   logs           AuditLog[]
