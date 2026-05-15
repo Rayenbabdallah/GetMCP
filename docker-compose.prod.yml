@@ -1,0 +1,103 @@
+version: '3.8'
+
+# Production-grade compose. Differences from docker-compose.yml:
+#   - Postgres port NOT exposed to host
+#   - Restart policies on every service
+#   - Resource limits
+#   - JSON log rotation (default Docker logs grow unbounded)
+#   - API runs db migrate before start (separate one-shot service)
+#   - Web served on 8080 by non-root nginx; map to 80/443 via your edge LB
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: getmcp_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-getmcp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-getmcp_platform}
+    volumes:
+      - getmcp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-getmcp} -d ${POSTGRES_DB:-getmcp_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging: *default-logging
+
+  api-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: getmcp-api:${IMAGE_TAG:-local}
+    container_name: getmcp_api_migrate
+    restart: "no"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-getmcp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-getmcp_platform}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/sbin/tini", "--"]
+    command: ["pnpm", "exec", "prisma", "migrate", "deploy"]
+    logging: *default-logging
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: getmcp-api:${IMAGE_TAG:-local}
+    container_name: getmcp_api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-getmcp}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-getmcp_platform}?schema=public
+      - NODE_ENV=production
+      - PORT=3000
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.example}
+      - KEY_ENCRYPTION_KEY=${KEY_ENCRYPTION_KEY:?must be set (openssl rand -hex 32)}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api-migrate:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging: *default-logging
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    image: getmcp-web:${IMAGE_TAG:-local}
+    container_name: getmcp_web
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging: *default-logging
+
+volumes:
+  getmcp_pgdata:

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: getmcp
+description: GetMCP — Zero Trust for AI agents. Generates and protects MCP servers.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - mcp
+  - ai-agents
+  - zero-trust
+  - api-gateway
+sources:
+  - https://github.com/Rayenbabdallah/GetMCP
+maintainers:
+  - name: Rayen Babdallah

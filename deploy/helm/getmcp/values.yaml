@@ -1,0 +1,71 @@
+# Default values for the GetMCP Helm chart.
+# Override per environment with `helm install -f my-values.yaml`.
+
+image:
+  repository: ghcr.io/rayenbabdallah/getmcp-api
+  webRepository: ghcr.io/rayenbabdallah/getmcp-web
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+replicas:
+  api: 2
+  web: 2
+
+# Database — assumes external Postgres (Marketplace, RDS, Cloud SQL, Neon, …).
+# We do NOT ship a Postgres subchart; bring your own with backups + HA.
+database:
+  # secret containing key DATABASE_URL with full connection string
+  existingSecret: "getmcp-db"
+  secretKey: "DATABASE_URL"
+
+# Encryption key for at-rest secrets (Slack tokens, upstream auth headers).
+# Generate: openssl rand -hex 32
+encryptionKey:
+  existingSecret: "getmcp-encryption-key"
+  secretKey: "KEY_ENCRYPTION_KEY"
+
+# Optional — Claude API key for the LLM endpoint classifier.
+anthropic:
+  existingSecret: ""   # leave empty to disable; falls back to keyword heuristics
+  secretKey: "ANTHROPIC_API_KEY"
+
+api:
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+  corsOrigins: "https://getmcp.your-domain.example"
+  jsonBodyLimit: "1mb"
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits:   { cpu: "1",    memory: "512Mi" }
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+
+web:
+  service:
+    type: ClusterIP
+    port: 8080
+  apiUrl: "/api"   # baked into the Vite bundle at image build time
+  resources:
+    requests: { cpu: "10m",  memory: "32Mi" }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: getmcp.your-domain.example
+  tls:
+    enabled: true
+    secretName: getmcp-tls
+
+# DB migrations run as a Helm pre-install/pre-upgrade Job. Disable if you
+# manage schema migrations out-of-band (e.g. CI runs `prisma migrate deploy`).
+migrate:
+  enabled: true
+  backoffLimit: 3

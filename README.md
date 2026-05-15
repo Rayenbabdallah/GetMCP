@@ -8,34 +8,25 @@ Welcome to the GetMCP Beta. This guide outlines how to deploy the GetMCP Enterpr
 - pnpm 9+
 - PostgreSQL (if running outside of Docker)
 
-## Quick Start (Docker Compose)
+## Quick Start (one command)
 
-The easiest way to run the GetMCP platform is via the included Docker Compose configuration. This will spin up a PostgreSQL database, the NestJS Policy Engine (API), and the React Control Plane Dashboard.
+```bash
+git clone https://github.com/Rayenbabdallah/GetMCP
+cd GetMCP
+./deploy/scripts/bootstrap.sh
+```
 
-1. **Set environment variables**
+The bootstrap script generates `.env` with fresh `POSTGRES_PASSWORD` + `KEY_ENCRYPTION_KEY`, brings up Postgres, runs migrations, starts API + Web, and seeds a demo org. Re-runnable safely. Output prints a working API key (saved exactly once) and curl commands.
 
-   Copy the templates and fill in real values. Never commit the resulting `.env` files.
-   ```bash
-   cp .env.example .env
-   cp apps/api/.env.example apps/api/.env
-   ```
-   Generate a strong `POSTGRES_PASSWORD` (e.g. `openssl rand -base64 32`) and set it in both files. The previous publicly-published default has been rotated — any existing volume must be recreated.
+Defaults: dashboard at `http://localhost:8080`, API at `http://localhost:3000`. Kubernetes deploy via Helm chart in `deploy/helm/getmcp/`. Full operations runbook in `docs/operations.md`.
 
-2. **Initialize the database**
-   ```bash
-   docker-compose up -d postgres
-   pnpm install
-   pnpm --filter api run db:migrate:deploy
-   ```
-   For local schema iteration use `pnpm --filter api run db:migrate:dev` (creates a new migration when the schema diverges).
+## Production deploy
 
-3. **Start the platform**
-   ```bash
-   docker-compose up --build -d
-   ```
+- **Docker Compose**: `docker compose -f docker-compose.prod.yml up -d` after `bootstrap.sh`. Healthchecks, restart policies, log rotation, resource limits, and the migrate-before-start ordering are all wired in.
+- **Kubernetes (Helm)**: `helm install getmcp deploy/helm/getmcp -n getmcp --set ingress.host=...`. Pre-install Helm hook runs `prisma migrate deploy`; rolling deploy uses `maxSurge:1, maxUnavailable:0`. Chart deliberately does NOT bundle Postgres — bring your own (Marketplace Neon, RDS, Cloud SQL).
+- **Backups**: `./deploy/scripts/backup-db.sh` (compressed `pg_dump` + retention prune); restore via `./deploy/scripts/restore-db.sh`. Always re-run `GET /audit/verify` after a restore — the chain must report `valid: true`.
 
-4. **Access the dashboard**
-   Navigate to `http://localhost:80` (or your server's IP) to access the GetMCP Control Plane.
+See `docs/operations.md` for the full runbook (upgrades, rolling secrets, common incidents, alerting thresholds).
 
 ## Local development
 
