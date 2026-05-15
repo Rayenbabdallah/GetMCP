@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { clearApiKey, getOrgName } from '../lib/auth';
 import { api } from '../lib/api';
+import { Logo } from './ui/Logo';
 
 interface NavItem {
   label: string;
@@ -36,10 +37,8 @@ export function Layout() {
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
       <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
-        <div className="flex h-14 items-center gap-2 border-b border-slate-200 px-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-white text-sm font-bold">
-            G
-          </div>
+        <div className="flex h-14 items-center gap-2.5 border-b border-slate-200 px-4">
+          <Logo size={28} />
           <div className="flex flex-col leading-tight">
             <span className="text-sm font-semibold text-slate-900">GetMCP</span>
             <span className="text-[10px] uppercase tracking-wider text-slate-500">Zero Trust for AI</span>

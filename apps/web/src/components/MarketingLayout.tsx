@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { getApiKey } from '../lib/auth';
+import { Logo } from './ui/Logo';
 
 export function MarketingLayout() {
   return (
@@ -17,9 +18,8 @@ function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">G</div>
-          <span className="text-sm font-semibold tracking-tight">GetMCP</span>
+        <Link to="/" className="flex items-center">
+          <Logo size={28} withWordmark />
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <NavItem to="/docs">Docs</NavItem>
@@ -80,9 +80,8 @@ function Footer() {
     <footer className="border-t border-slate-200 bg-slate-50">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-12 sm:grid-cols-4">
         <div className="sm:col-span-2">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm font-bold text-white">G</div>
-            <span className="text-sm font-semibold tracking-tight">GetMCP</span>
+          <Link to="/" className="flex items-center">
+            <Logo size={28} withWordmark />
           </Link>
           <p className="mt-3 max-w-md text-sm text-slate-600">
             Zero Trust for AI agents. Generate the MCP servers your customers' agents need, then enforce who can do what.

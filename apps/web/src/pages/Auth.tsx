@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Field } from '../components/ui/Field';
 import { InlineCode } from '../components/ui/CodeBlock';
+import { Logo } from '../components/ui/Logo';
 
 export function Auth() {
   const navigate = useNavigate();
@@ -40,11 +41,8 @@ export function Auth() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center justify-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-600 text-white text-base font-bold">
-            G
-          </div>
-          <span className="text-lg font-semibold text-slate-900">GetMCP</span>
+        <div className="mb-8 flex items-center justify-center">
+          <Logo size={36} withWordmark wordmarkClass="ml-2 text-lg font-semibold text-slate-900" />
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
