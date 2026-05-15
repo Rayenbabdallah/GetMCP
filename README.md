@@ -20,6 +20,13 @@ The bootstrap script generates `.env` with fresh `POSTGRES_PASSWORD` + `KEY_ENCR
 
 Defaults: dashboard at `http://localhost:8080`, API at `http://localhost:3000`. Kubernetes deploy via Helm chart in `deploy/helm/getmcp/`. Full operations runbook in `docs/operations.md`.
 
+## Testing
+
+- Strategy + claim → test mapping: [`docs/testing.md`](docs/testing.md)
+- Per-file coverage gates on the 12 correctness-critical files (`apps/api/package.json#jest.coverageThreshold`); CI blocks merge on regression
+- Property tests for the audit chain: 200 random inserts verified end-to-end, 50 random tampers all detected at the right `seq`
+- Cross-rule combination tests for the policy engine — priority interactions, source filters, bypass behavior
+
 ## Performance
 
 - Targets and tuning knobs: [`docs/performance.md`](docs/performance.md)

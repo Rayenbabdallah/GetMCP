@@ -81,9 +81,28 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.spec.ts",
+      "!**/*.dto.ts",
+      "!**/*.module.ts",
+      "!main.ts",
+      "!prisma.service.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "./src/audit/canonical.util.ts":     { "statements": 95, "branches": 80, "functions": 100, "lines": 95 },
+      "./src/audit/audit.service.ts":      { "statements": 70, "branches": 50, "functions": 70,  "lines": 70 },
+      "./src/policy/policy.engine.ts":     { "statements": 95, "branches": 75, "functions": 100, "lines": 95 },
+      "./src/policy/path-match.util.ts":   { "statements": 85, "branches": 80, "functions": 100, "lines": 100 },
+      "./src/policy/rate-limiter.ts":      { "statements": 90, "branches": 85, "functions": 50,  "lines": 90 },
+      "./src/policy/reasoning.util.ts":    { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+      "./src/proxy/proxy.service.ts":      { "statements": 90, "branches": 80, "functions": 80,  "lines": 90 },
+      "./src/auth/api-key.util.ts":        { "statements": 90, "branches": 75, "functions": 100, "lines": 90 },
+      "./src/slack/slack.signature.ts":    { "statements": 95, "branches": 85, "functions": 100, "lines": 95 },
+      "./src/crypto.util.ts":              { "statements": 90, "branches": 80, "functions": 100, "lines": 90 },
+      "./src/generator/heuristic.ts":      { "statements": 85, "branches": 75, "functions": 100, "lines": 85 },
+      "./src/generator/spec-hash.util.ts": { "statements": 85, "branches": 70, "functions": 100, "lines": 85 }
+    }
   }
 }

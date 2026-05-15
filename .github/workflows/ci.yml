@@ -28,7 +28,9 @@ jobs:
 
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm -r run test --if-present
+      # Per-file coverage thresholds in apps/api/package.json#jest fail the
+      # build if any correctness-critical file regresses below its floor.
+      - run: pnpm --filter api run test:cov
 
       # Block merges on high-severity vulnerabilities. Override per-package
       # with pnpm.audit.ignoreCves in package.json if a CVE is non-applicable.

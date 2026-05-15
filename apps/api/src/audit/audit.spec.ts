@@ -2,6 +2,9 @@ import 'reflect-metadata';
 import { AuditService } from './audit.service';
 import { canonicalJson, computeAuditHash, rowToHashable } from './canonical.util';
 
+// Synchronous import for the recordSafe test below — dynamic import doesn't
+// work under the default Jest transformer.
+
 // In-memory Prisma fake good enough to exercise the chain logic.
 // Models the bare minimum of what AuditService.record + verifyChain need.
 function fakePrisma() {
@@ -66,6 +69,36 @@ describe('canonicalJson', () => {
   it('throws on non-finite numbers', () => {
     expect(() => canonicalJson({ x: NaN })).toThrow();
     expect(() => canonicalJson({ x: Infinity })).toThrow();
+  });
+
+  it('throws on unsupported value types', () => {
+    expect(() => canonicalJson({ x: () => 0 } as any)).toThrow(/Unsupported/);
+    expect(() => canonicalJson({ x: Symbol('s') } as any)).toThrow(/Unsupported/);
+  });
+
+  it('canonicalJson handles undefined as null (matches AuditLog nullable convention)', () => {
+    expect(canonicalJson(undefined)).toBe('null');
+  });
+});
+
+describe('AuditService.recordSafe', () => {
+  it('does not throw when the underlying record fails', async () => {
+    const prisma: any = {
+      $transaction: jest.fn().mockRejectedValue(new Error('db down')),
+    };
+    const svc = new AuditService(prisma);
+    // recordSafe is fire-and-forget — it MUST NOT throw or reject the caller.
+    expect(() => svc.recordSafe({
+      organizationId: 'org-X',
+      method: 'GET',
+      path: '/x',
+      source: 'internal_mcp',
+      actionTaken: 'EXECUTED',
+      requestBytes: 0,
+      latencyMs: 1,
+    })).not.toThrow();
+    // Yield so the rejected promise is handled by recordSafe's .catch.
+    await new Promise((r) => setImmediate(r));
   });
 });
 
