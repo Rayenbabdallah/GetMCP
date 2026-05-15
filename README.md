@@ -56,6 +56,34 @@ pnpm test
 
 Every API endpoint (except `/health`) requires an `Authorization: Bearer <api-key>` header scoped to an Organization. Keys are minted by the seed script and via the `/orgs` endpoints (see `apps/api/src/auth`). All Prisma queries are filtered by the authenticated organization — see the tenant-isolation tests in `apps/api/src/auth/auth.spec.ts`.
 
+## Configuring an upstream
+
+The proxy forwards requests to a per-organization downstream API. Set it via:
+
+```bash
+KEY=<your-gmcp_-key>
+curl -X PATCH http://localhost:3000/orgs/me \
+  -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "upstreamBaseUrl": "https://api.stripe.com",
+    "upstreamAuthHeader": "Bearer sk_test_...",
+    "upstreamTimeoutMs": 10000
+  }'
+```
+
+`upstreamAuthHeader` is encrypted at rest with `KEY_ENCRYPTION_KEY` (AES-256-GCM) and never returned by the API. Then call:
+
+```bash
+curl -X POST http://localhost:3000/proxy/execute \
+  -H "Authorization: Bearer $KEY" \
+  -H "x-agent-source: internal_mcp" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"GET","path":"/v1/charges"}'
+```
+
+The upstream's status code, headers, and body stream through faithfully. Upstream timeouts return `504`, connection errors return `502`.
+
 ## Roadmap
 
-See `CHECKLIST.md` for the open execution list. The proxy currently simulates downstream execution and the Slack approval flow is a stub — both are scheduled in the next milestones.
+See `CHECKLIST.md` for the open execution list. Slack approval is still a stub log line — that's next.

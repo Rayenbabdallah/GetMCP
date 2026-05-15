@@ -15,6 +15,12 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Downstream API configuration. The proxy forwards agent requests to
+  // upstreamBaseUrl + req.path, optionally injecting upstreamAuthHeader.
+  upstreamBaseUrl    String?
+  upstreamAuthHeader String?  // AES-256-GCM ciphertext, see src/crypto.util.ts
+  upstreamTimeoutMs  Int      @default(30000)
+
   specs     OpenApiSpec[]
   policies  PolicyRule[]
   agents    AgentIdentity[]

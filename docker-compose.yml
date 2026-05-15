@@ -28,6 +28,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
+      - KEY_ENCRYPTION_KEY=${KEY_ENCRYPTION_KEY:?KEY_ENCRYPTION_KEY must be set in .env (openssl rand -hex 32)}
     ports:
       - "3000:3000"
     depends_on:
