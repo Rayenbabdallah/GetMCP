@@ -31,12 +31,43 @@ model Organization {
   slackSigningSecret  String?
   slackDefaultChannel String?
 
-  specs            OpenApiSpec[]
-  policies         PolicyRule[]
-  agents           AgentIdentity[]
-  apiKeys          ApiKey[]
-  auditLogs        AuditLog[]
-  pendingRequests  PendingRequest[]
+  specs                   OpenApiSpec[]
+  policies                PolicyRule[]
+  agents                  AgentIdentity[]
+  apiKeys                 ApiKey[]
+  auditLogs               AuditLog[]
+  pendingRequests         PendingRequest[]
+  endpointClassifications EndpointClassification[]
+}
+
+// Per-endpoint risk classification — produced by the LLM classifier (or the
+// heuristic fallback) for a specific OpenAPI spec. Cached by spec hash so we
+// never reclassify the same spec twice. Human overrides flip the verdict
+// without re-running the classifier.
+model EndpointClassification {
+  id                       String       @id @default(cuid())
+  organizationId           String
+  specHash                 String       // sha256 of the canonical spec body
+  path                     String
+  method                   String
+  dataSensitivity          Int          // 0-100 (higher = more risky)
+  mutationImpact           Int          // 0-100
+  hasTenantScope           Boolean
+  reversible               Boolean
+  exposeExternally         Boolean      // classifier verdict
+  reasoning                String       // model's stated reason, audit-quality
+  classifierSource         String       // "llm" | "heuristic"
+  overrideExposeExternally Boolean?     // human override (null = use classifier)
+  overrideBy               String?      // apiKeyId of the operator who set it
+  overrideAt               DateTime?
+  overrideReason           String?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, specHash, path, method])
+  @@index([organizationId, specHash])
 }
 
 // A held request awaiting human approval via Slack (or another channel).

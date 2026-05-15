@@ -53,6 +53,37 @@ pnpm test
 - **`apps/web` (React/Vite):** The enterprise dashboard for managing policies, generating infrastructure, and viewing audit logs.
 - **`docker-compose.yml`**: Container orchestration for local and beta deployments.
 
+## Generator
+
+GetMCP turns an OpenAPI spec into two runnable MCP servers (Internal + External). Endpoints are scored by an LLM classifier on four axes (data sensitivity, mutation impact, tenant scope, reversibility), cached by canonical spec hash, and overridable per endpoint by your security team.
+
+```bash
+KEY=<your-gmcp_-key>
+
+# Classify (cached on second call for the same spec — no LLM cost)
+curl -X POST http://localhost:3000/generator/classify \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"openapiUrl":"https://petstore3.swagger.io/api/v3/openapi.json"}'
+
+# Flip an endpoint manually (or clear with "exposeExternally": null)
+curl -X POST http://localhost:3000/generator/override \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"specHash":"...","path":"/admin/users","method":"delete","exposeExternally":true,"reason":"audited"}'
+
+# Generate the Two-MCP split (uses cached classifications + overrides)
+curl -X POST http://localhost:3000/generator/generate \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"openapiUrl":"https://petstore3.swagger.io/api/v3/openapi.json"}'
+
+# Download the runnable scaffold (zip)
+curl -G "http://localhost:3000/generator/export" \
+  -H "Authorization: Bearer $KEY" --data-urlencode "openapiUrl=..." -o getmcp.zip
+```
+
+The exported zip contains real, runnable Node MCP servers — pinned `@modelcontextprotocol/sdk@1.0.4`, one tool per (method, path), reads `schema.json` at startup, forwards calls to `UPSTREAM_BASE_URL` via fetch. `cd internal-mcp && npm install && UPSTREAM_BASE_URL=... npm start` works out of the box.
+
+Set `ANTHROPIC_API_KEY` to enable the LLM classifier. Without it, the generator falls back to keyword heuristics (deterministic, no network call, lower accuracy).
+
 ## Operability
 
 - **Logs**: structured JSON via pino, one line per request. Each line carries `req.id` (sourced from `x-request-id` header or generated). Override level with `LOG_LEVEL=debug|info|warn|error|silent`.
