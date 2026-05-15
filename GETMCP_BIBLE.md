@@ -94,3 +94,30 @@ We are building the **Identity and Access Management (IAM) for non-human workers
 ## 6. The Pitch (Elevator Version)
 
 "Enterprises are terrified of letting AI agents access their systems, but they know they have to. GetMCP is an automated infrastructure platform that takes any company's existing APIs and instantly generates secure, policy-driven AI access layers. We separate internal 'god-mode' access from external 'customer-safe' access automatically. We aren't building AI agents; we're building the secure infrastructure that allows AI agents to actually do work in the real world."
+
+---
+
+## 7. The Sharpened Pitch — Zero Trust for AI Agents
+
+"Companies spent the last decade building Zero Trust for their employees — verify every request, least privilege, audit everything. AI agents broke that model overnight: most companies hand agents a single API key and pray. GetMCP is Zero Trust Architecture for AI agents. We generate both the **internal MCP servers** (so your own teams' agents can safely operate god-mode against production) and the **customer-facing external MCP servers** (so your customers' agents can transact with you), then enforce per-request identity, scoped permissions, policy-driven access, and a tamper-evident audit ledger across both — the exact controls security teams already require for humans, finally extended to non-human workers."
+
+### One-liner (deck / tweet)
+
+**"Zero Trust for AI agents — internal and external. We generate the MCP servers and run the policy + audit layer that makes them safe to ship."**
+
+### Why this framing changes the business
+
+- **Different buyer.** "AI infrastructure" sells to platform engineers ($10–50k/year). "Zero Trust for AI" sells to CISOs and Heads of Security ($100k–1M+/year). Same product, 10× the check.
+- **Different competitors.** Without this framing we compete with Arcade, Composio, Smithery — every MCP gateway startup in a race to the bottom. With it, we compete with Okta, Cloudflare, Zscaler for the *agent* segment, which none of them serve yet.
+- **Existing vocabulary.** Security teams don't have to invent a new line item; "agent Zero Trust" goes on the same compliance docs, SOC2 controls, and RFPs as their human Zero Trust stack.
+- **Land-and-expand baked in.** Customers start with internal MCP (low risk, fast win), graduate to external MCP (high revenue, high lock-in) on the same platform, same audit log, same policies. One control plane for every non-human worker — the consolidation pitch security buyers love.
+
+### Zero Trust principles → what GetMCP actually ships
+
+| Zero Trust principle | GetMCP implementation |
+|---|---|
+| Verify explicitly — authenticate every request | Per-org bearer key + `x-agent-id` resolved per call |
+| Least privilege access | Two-MCP split: external agents get a scoped subset, not god mode |
+| Assume breach — every action observable | Hash-chained, tamper-evident audit ledger |
+| Continuous validation | Policy engine evaluates every request: rate limits, approvals, allowlists |
+| Microsegmentation | Per-org isolation, per-tenant rate buckets, per-agent scopes |
