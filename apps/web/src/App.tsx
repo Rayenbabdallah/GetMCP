@@ -1,8 +1,11 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 import { getApiKey } from './lib/auth';
 import { Layout } from './components/Layout';
+import { MarketingLayout } from './components/MarketingLayout';
 import { Auth } from './pages/Auth';
+import { Landing } from './pages/Landing';
+import { Docs } from './pages/Docs';
 import { Dashboard } from './pages/Dashboard';
 import { Policies } from './pages/Policies';
 import { Agents } from './pages/Agents';
@@ -21,8 +24,18 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public marketing site */}
+        <Route element={<MarketingLayout />}>
+          <Route index element={<Landing />} />
+          <Route path="docs/*" element={<Docs />} />
+        </Route>
+
+        {/* Auth screen — bare layout */}
         <Route path="/login" element={<Auth />} />
+
+        {/* Protected dashboard */}
         <Route
+          path="/app"
           element={
             <RequireAuth>
               <Layout />
@@ -38,6 +51,7 @@ export default function App() {
           <Route path="api-keys" element={<ApiKeys />} />
           <Route path="organization" element={<Organization />} />
         </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

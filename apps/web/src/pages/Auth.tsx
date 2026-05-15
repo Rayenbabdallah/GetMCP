@@ -24,7 +24,7 @@ export function Auth() {
       setApiKey(trimmed);
       const org = await api<{ name?: string }>('/orgs/me');
       if (org?.name) setOrgName(org.name);
-      navigate('/');
+      navigate('/app');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setError('That key was rejected. Check it was copied in full and not revoked.');

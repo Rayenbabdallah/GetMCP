@@ -59,28 +59,28 @@ export function Dashboard() {
           value={verify?.valid ? 'Valid' : verify ? 'Broken' : '…'}
           tone={verify?.valid ? 'success' : verify ? 'danger' : 'neutral'}
           sub={verify?.valid ? `${verify.rowCount} rows` : verify?.reason ?? ''}
-          to="/audit"
+          to="/app/audit"
         />
         <StatTile
           label="Active policies"
           value={policies ? String(policies.filter((p: any) => p.isActive).length) : '…'}
           tone="brand"
           sub={policies ? `${policies.length} total` : ''}
-          to="/policies"
+          to="/app/policies"
         />
         <StatTile
           label="Agents"
           value={agents ? String(agents.filter((a: any) => a.enabled && !a.revokedAt).length) : '…'}
           tone="info"
           sub={agents ? `${agents.length} total` : ''}
-          to="/agents"
+          to="/app/agents"
         />
         <StatTile
           label="Pending approvals"
           value={pending !== null ? String(pending) : '…'}
           tone={pending && pending > 0 ? 'warning' : 'neutral'}
           sub="last 100 audited calls"
-          to="/approvals"
+          to="/app/approvals"
         />
       </div>
 
@@ -91,7 +91,7 @@ export function Dashboard() {
             title="Recent activity"
             description="Last 8 proxied calls"
             actions={
-              <Link to="/audit">
+              <Link to="/app/audit">
                 <Button variant="ghost" size="sm">View all</Button>
               </Link>
             }
@@ -136,29 +136,29 @@ export function Dashboard() {
             <SetupItem
               done={Boolean(org?.upstreamBaseUrl)}
               label="Configure upstream"
-              to="/organization"
+              to="/app/organization"
             />
             <SetupItem
               done={Boolean(org?.hasUpstreamAuthHeader)}
               label="Add upstream auth header"
-              to="/organization"
+              to="/app/organization"
               optional
             />
             <SetupItem
               done={agents !== null && agents.length > 0}
               label="Register an agent"
-              to="/agents"
+              to="/app/agents"
             />
             <SetupItem
               done={Boolean(org?.hasSlackBotToken)}
               label="Connect Slack for approvals"
-              to="/organization"
+              to="/app/organization"
               optional
             />
             <SetupItem
               done={policies !== null && policies.length > 0}
               label="Create at least one policy"
-              to="/policies"
+              to="/app/policies"
             />
           </ul>
         </Card>

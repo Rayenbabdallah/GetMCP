@@ -11,14 +11,14 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: 'Dashboard',     to: '/',           icon: <IconDashboard /> },
-  { label: 'Generator',     to: '/generator',  icon: <IconGenerator /> },
-  { label: 'Policies',      to: '/policies',   icon: <IconShield /> },
-  { label: 'Agents',        to: '/agents',     icon: <IconBot /> },
-  { label: 'Approvals',     to: '/approvals',  icon: <IconApprove /> },
-  { label: 'Audit log',     to: '/audit',      icon: <IconLedger /> },
-  { label: 'API keys',      to: '/api-keys',   icon: <IconKey /> },
-  { label: 'Organization',  to: '/organization', icon: <IconBuilding /> },
+  { label: 'Dashboard',     to: '/app',              icon: <IconDashboard /> },
+  { label: 'Generator',     to: '/app/generator',    icon: <IconGenerator /> },
+  { label: 'Policies',      to: '/app/policies',     icon: <IconShield /> },
+  { label: 'Agents',        to: '/app/agents',       icon: <IconBot /> },
+  { label: 'Approvals',     to: '/app/approvals',    icon: <IconApprove /> },
+  { label: 'Audit log',     to: '/app/audit',        icon: <IconLedger /> },
+  { label: 'API keys',      to: '/app/api-keys',     icon: <IconKey /> },
+  { label: 'Organization',  to: '/app/organization', icon: <IconBuilding /> },
 ];
 
 export function Layout() {
@@ -51,7 +51,7 @@ export function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end={item.to === '/app'}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
