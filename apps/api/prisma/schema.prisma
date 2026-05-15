@@ -25,11 +25,57 @@ model Organization {
   lastAuditHash      String   @default("genesis")
   lastAuditSeq       Int      @default(0)
 
-  specs     OpenApiSpec[]
-  policies  PolicyRule[]
-  agents    AgentIdentity[]
-  apiKeys   ApiKey[]
-  auditLogs AuditLog[]
+  // Slack integration for MUTATION_APPROVAL flow. All encrypted at rest.
+  // Configure via PATCH /orgs/me.
+  slackBotToken       String?
+  slackSigningSecret  String?
+  slackDefaultChannel String?
+
+  specs            OpenApiSpec[]
+  policies         PolicyRule[]
+  agents           AgentIdentity[]
+  apiKeys          ApiKey[]
+  auditLogs        AuditLog[]
+  pendingRequests  PendingRequest[]
+}
+
+// A held request awaiting human approval via Slack (or another channel).
+// Created when a MUTATION_APPROVAL rule fires. On approval, the original
+// request is replayed through the proxy with bypassApproval=true and the
+// upstream response is captured here for the original caller to poll.
+model PendingRequest {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  agentId               String?
+  apiKeyId              String?
+  method                String
+  path                  String
+  query                 Json?
+  body                  Json?
+  source                String
+  tenantId              String?
+  reasoning             String?
+  ruleId                String       // policy rule that triggered the hold
+  ruleName              String
+  channel               String?      // Slack channel the approval was sent to
+  slackMessageTs        String?      // Slack message timestamp, for chat.update
+  status                String       @default("PENDING") // PENDING | APPROVED | DENIED | EXPIRED
+  approverSlackUserId   String?
+  approverSlackUserName String?
+  decisionReason        String?
+  decidedAt             DateTime?
+  // Captured upstream response (JSON only, capped at 256KB). For non-JSON
+  // bodies we store a base64 string; truncated payloads end with "[truncated]".
+  responseStatus        Int?
+  responseHeaders       Json?
+  responseBody          Json?
+  createdAt             DateTime     @default(now())
+  expiresAt             DateTime
+
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([expiresAt])
 }
 
 // API keys for authenticating callers as a specific Organization.

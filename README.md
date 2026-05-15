@@ -139,6 +139,34 @@ curl -X POST http://localhost:3000/policies/simulate -H "Authorization: Bearer $
   -d '{"method":"DELETE","path":"/v1/refunds/abc","source":"external_mcp","tenantId":"t-1","reasoning":"customer #321 requested rollback"}'
 ```
 
+## Slack approval flow
+
+A `MUTATION_APPROVAL` rule holds the request, posts an interactive Approve/Deny card to Slack, and returns `202` with a `pendingId`. The original caller polls `GET /approvals/:id` until status leaves `PENDING`.
+
+**Configure once per org:**
+
+```bash
+curl -X PATCH http://localhost:3000/orgs/me \
+  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{
+    "slackBotToken": "xoxb-...",
+    "slackSigningSecret": "abc123...",
+    "slackDefaultChannel": "#approvals"
+  }'
+```
+
+Both Slack secrets are AES-256-GCM encrypted at rest. Point your Slack app's **Interactivity Request URL** at `https://your-getmcp/slack/interactions` — the endpoint verifies signatures (`v0` HMAC-SHA256, ±5min replay window).
+
+**Lifecycle:**
+
+1. Caller `POST /proxy/execute` → policy fires `MUTATION_APPROVAL` → response is `202 { pendingId, pollUrl, expiresAt }`. Default TTL 15 min.
+2. Slack message has Approve/Deny buttons. The clicker's identity is recorded in the audit log.
+3. On Approve: request is replayed through the proxy with `bypassApproval=true` (other rules — BLOCK / RATE_LIMIT / AUDIT — still apply). Upstream response is captured (status + headers + body up to 256KB).
+4. On Deny / Expire: a BLOCKED audit row is written, no upstream call is made.
+5. Caller polls `GET /approvals/:id` → eventually receives `{status, responseStatus, responseHeaders, responseBody}`.
+
+A background sweeper expires PENDING rows past their TTL every 30s.
+
 ## Audit ledger
 
 Every proxy call writes one tamper-evident `AuditLog` row to a per-organization hash chain. Quick checks:

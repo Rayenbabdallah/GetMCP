@@ -147,6 +147,25 @@ describe('evaluate', () => {
     expect(d.kind).toBe('allow');
   });
 
+  it('bypassApproval skips MUTATION_APPROVAL but still honors BLOCK/RATE_LIMIT', () => {
+    const rules = [
+      rule({ id: 'mut', priority: 50, ruleType: 'MUTATION_APPROVAL', targetMethod: 'POST', targetPath: '/v1/refunds', actionConfig: { channel: '#ops' } }),
+      rule({ id: 'rl', priority: 100, ruleType: 'RATE_LIMIT', targetMethod: '*', targetPath: '*', actionConfig: { limit: 1, windowMs: 60_000, scope: 'agent+tenant' } }),
+    ];
+
+    // Without bypass: short-circuits at MUTATION_APPROVAL.
+    const noBypass = evaluate(rules, baseCtx, rl);
+    expect(noBypass.kind).toBe('awaiting_approval');
+
+    // With bypass: MUTATION_APPROVAL is skipped, RATE_LIMIT runs.
+    const replay1 = evaluate(rules, { ...baseCtx, bypassApproval: true }, rl);
+    expect(replay1.kind).toBe('allow');
+
+    // Second replay hits the rate limit.
+    const replay2 = evaluate(rules, { ...baseCtx, bypassApproval: true }, rl);
+    expect(replay2.kind).toBe('rate_limited');
+  });
+
   it('produces a trace entry for every rule examined', () => {
     const rules = [
       rule({ id: 'r1', ruleType: 'BLOCK', targetPath: '/never-matches' }),

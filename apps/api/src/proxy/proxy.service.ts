@@ -16,6 +16,9 @@ export interface AgentRequest {
   body?: any;
   organizationId: string;
   agentId?: string | null;
+  // Set true when replaying an approved request — skips MUTATION_APPROVAL rules
+  // but still honors BLOCK / AUDIT / RATE_LIMIT.
+  bypassApproval?: boolean;
 }
 
 export interface PolicyOutcome {
@@ -94,6 +97,7 @@ export class ProxyService {
       agentId: req.agentId ?? null,
       tenantId: req.tenantId ?? null,
       reasoning: headers?.['x-agent-reasoning'] ?? null,
+      bypassApproval: req.bypassApproval,
     });
 
     if (decision.kind === 'block') {
@@ -118,10 +122,11 @@ export class ProxyService {
       );
     }
     if (decision.kind === 'awaiting_approval') {
+      // bypassApproval already filters MUTATION_APPROVAL in the engine; if we
+      // still see this kind here, the request genuinely needs approval.
       this.logger.warn(
         `Intercepted by Rule [${decision.rule.name}] - notifying ${decision.channel}`,
       );
-      this.dispatchApprovalWebhook(decision.channel, req);
       return {
         kind: 'policy',
         allowed: false,
@@ -226,11 +231,6 @@ export class ProxyService {
     return out;
   }
 
-  private dispatchApprovalWebhook(channel: string, req: AgentRequest) {
-    this.logger.log(
-      `[WEBHOOK] Sending interactive approval card to Slack ${channel} for Agent requesting ${req.path}`,
-    );
-  }
 }
 
 export function joinUrl(base: string, path: string): string {

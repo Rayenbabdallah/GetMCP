@@ -8,11 +8,13 @@ import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { AgentModule } from './agents/agent.module';
 import { PolicyModule } from './policy/policy.module';
+import { SlackModule } from './slack/slack.module';
+import { ApprovalModule } from './approval/approval.module';
 import { HealthController } from './health.controller';
 import { RequestIdMiddleware } from './request-id.middleware';
 
 @Module({
-  imports: [AuthModule, AuditModule, AgentModule, PolicyModule, GeneratorModule, ProxyModule, OrgModule],
+  imports: [AuthModule, AuditModule, AgentModule, PolicyModule, SlackModule, ApprovalModule, GeneratorModule, ProxyModule, OrgModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })

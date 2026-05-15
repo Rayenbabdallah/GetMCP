@@ -6,10 +6,12 @@ import { encryptSecret } from '../crypto.util';
 interface UpdateOrgDto {
   name?: string;
   upstreamBaseUrl?: string | null;
-  // Plaintext header value (e.g. "Bearer sk_test_..."). Encrypted at rest.
-  // Pass null to clear.
   upstreamAuthHeader?: string | null;
   upstreamTimeoutMs?: number;
+  // Slack — encrypted at rest. Pass null to clear.
+  slackBotToken?: string | null;
+  slackSigningSecret?: string | null;
+  slackDefaultChannel?: string | null;
 }
 
 @Controller('orgs')
@@ -26,12 +28,21 @@ export class OrgController {
         authType: true,
         upstreamBaseUrl: true,
         upstreamTimeoutMs: true,
+        slackDefaultChannel: true,
         createdAt: true,
         updatedAt: true,
-        // upstreamAuthHeader intentionally omitted — never returned in plaintext or ciphertext.
       },
     });
-    return { ...org, hasUpstreamAuthHeader: await this.hasAuthHeader(ctx.organizationId) };
+    const flags = await this.prisma.organization.findUnique({
+      where: { id: ctx.organizationId },
+      select: { upstreamAuthHeader: true, slackBotToken: true, slackSigningSecret: true },
+    });
+    return {
+      ...org,
+      hasUpstreamAuthHeader: Boolean(flags?.upstreamAuthHeader),
+      hasSlackBotToken: Boolean(flags?.slackBotToken),
+      hasSlackSigningSecret: Boolean(flags?.slackSigningSecret),
+    };
   }
 
   @Patch('me')
@@ -66,15 +77,18 @@ export class OrgController {
       data.upstreamTimeoutMs = body.upstreamTimeoutMs;
     }
 
+    if (body.slackBotToken !== undefined) {
+      data.slackBotToken = body.slackBotToken === null ? null : encryptSecret(body.slackBotToken);
+    }
+    if (body.slackSigningSecret !== undefined) {
+      data.slackSigningSecret =
+        body.slackSigningSecret === null ? null : encryptSecret(body.slackSigningSecret);
+    }
+    if (body.slackDefaultChannel !== undefined) {
+      data.slackDefaultChannel = body.slackDefaultChannel;
+    }
+
     await this.prisma.organization.update({ where: { id: ctx.organizationId }, data });
     return this.me(ctx);
-  }
-
-  private async hasAuthHeader(orgId: string): Promise<boolean> {
-    const row = await this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { upstreamAuthHeader: true },
-    });
-    return Boolean(row?.upstreamAuthHeader);
   }
 }

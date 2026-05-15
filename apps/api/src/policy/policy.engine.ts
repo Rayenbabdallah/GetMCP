@@ -29,6 +29,9 @@ export interface EvalContext {
   agentId?: string | null;
   tenantId?: string | null;
   reasoning?: string | null;
+  // True when replaying a request that has already received human approval —
+  // MUTATION_APPROVAL rules are skipped, all other rules still apply.
+  bypassApproval?: boolean;
 }
 
 // Each step taken during evaluation, useful for the dry-run endpoint.
@@ -95,6 +98,18 @@ export function evaluate(
         ruleType: rule.ruleType,
         matched: false,
         outcome: 'skipped',
+      });
+      continue;
+    }
+
+    if (rule.ruleType === 'MUTATION_APPROVAL' && ctx.bypassApproval) {
+      trace.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        ruleType: rule.ruleType,
+        matched: true,
+        outcome: 'skipped',
+        detail: 'bypassed (already approved)',
       });
       continue;
     }

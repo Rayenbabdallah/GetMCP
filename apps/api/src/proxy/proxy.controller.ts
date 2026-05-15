@@ -16,6 +16,8 @@ import { ProxyService, AgentRequest } from './proxy.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AuditService } from '../audit/audit.service';
 import { AgentService } from '../agents/agent.service';
+import { ApprovalService } from '../approval/approval.service';
+import { PrismaService } from '../prisma.service';
 
 @Controller('proxy')
 export class ProxyController {
@@ -25,6 +27,8 @@ export class ProxyController {
     private readonly proxyService: ProxyService,
     private readonly audit: AuditService,
     private readonly agentService: AgentService,
+    private readonly approvals: ApprovalService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('execute')
@@ -159,6 +163,40 @@ export class ProxyController {
         responseBytes: null,
         latencyMs: Date.now() - startedAt,
       });
+
+      if (outcome.status === 'AWAITING_APPROVAL' && outcome.decision.kind === 'awaiting_approval') {
+        const orgRow = await this.prisma.organization.findUnique({
+          where: { id: org.organizationId },
+          select: { slackDefaultChannel: true },
+        });
+        const channel = outcome.decision.channel || orgRow?.slackDefaultChannel || '#approvals';
+        const pending = await this.approvals.createPending({
+          organizationId: org.organizationId,
+          agentId: agent.id,
+          agentName: agent.id,
+          apiKeyId: org.apiKeyId,
+          method: req.method,
+          path: req.path,
+          query: req.query,
+          body: req.body,
+          source: req.source,
+          tenantId,
+          reasoning,
+          ruleId: outcome.decision.rule.id,
+          ruleName: outcome.decision.rule.name,
+          channel,
+        });
+        res.status(202).json({
+          allowed: false,
+          status: 'AWAITING_APPROVAL',
+          reason: outcome.reason,
+          pendingId: pending.id,
+          pollUrl: `/approvals/${pending.id}`,
+          expiresAt: pending.expiresAt,
+        });
+        return;
+      }
+
       res.status(202).json({
         allowed: false,
         status: outcome.status,
