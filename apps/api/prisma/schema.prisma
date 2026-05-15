@@ -21,10 +21,15 @@ model Organization {
   upstreamAuthHeader String?  // AES-256-GCM ciphertext, see src/crypto.util.ts
   upstreamTimeoutMs  Int      @default(30000)
 
+  // Audit chain head. Updated atomically with each AuditLog write.
+  lastAuditHash      String   @default("genesis")
+  lastAuditSeq       Int      @default(0)
+
   specs     OpenApiSpec[]
   policies  PolicyRule[]
   agents    AgentIdentity[]
   apiKeys   ApiKey[]
+  auditLogs AuditLog[]
 }
 
 // API keys for authenticating callers as a specific Organization.
@@ -40,6 +45,7 @@ model ApiKey {
   createdAt      DateTime     @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  auditLogs      AuditLog[]
 
   @@index([organizationId])
 }
@@ -96,18 +102,35 @@ model AgentIdentity {
   @@index([organizationId])
 }
 
-// Tamper-proof execution ledger
+// Tamper-evident execution ledger. Each row's `hash` is sha256 of its canonical
+// fields plus the previous row's `hash`, forming a per-organization chain.
+// See src/audit/canonical.util.ts and AuditService.
 model AuditLog {
   id             String        @id @default(cuid())
-  agentId        String
+  organizationId String
+  seq            Int           // monotonic per organization
+  agentId        String?
+  apiKeyId       String?
   method         String
   path           String
-  reasoning      String?
-  actionTaken    String        // "EXECUTED", "BLOCKED", "AWAITING_APPROVAL"
+  source         String        // "internal_mcp" | "external_mcp" | "system"
+  tenantId       String?
+  reasoning      String?       // x-agent-reasoning header value
+  reason         String?       // policy reason or error message
+  actionTaken    String        // "EXECUTED" | "BLOCKED" | "AWAITING_APPROVAL" | "INCOMPLETE"
+  upstreamStatus Int?          // null when no upstream call was made
+  requestBytes   Int           @default(0)
+  responseBytes  Int?
   latencyMs      Float
+  prevHash       String        // hash of previous row, "genesis" for first
+  hash           String        // sha256 of canonical(this row)
   timestamp      DateTime      @default(now())
 
-  agent          AgentIdentity @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agent          AgentIdentity? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  apiKey         ApiKey?        @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
 
-  @@index([agentId, timestamp])
+  @@unique([organizationId, seq])
+  @@index([organizationId, timestamp])
+  @@index([organizationId, path])
 }

@@ -5,11 +5,12 @@ import { GeneratorModule } from './generator/generator.module';
 import { ProxyModule } from './proxy/proxy.module';
 import { OrgModule } from './orgs/org.module';
 import { AuthModule } from './auth/auth.module';
+import { AuditModule } from './audit/audit.module';
 import { HealthController } from './health.controller';
 import { RequestIdMiddleware } from './request-id.middleware';
 
 @Module({
-  imports: [AuthModule, GeneratorModule, ProxyModule, OrgModule],
+  imports: [AuthModule, AuditModule, GeneratorModule, ProxyModule, OrgModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })

@@ -84,6 +84,19 @@ curl -X POST http://localhost:3000/proxy/execute \
 
 The upstream's status code, headers, and body stream through faithfully. Upstream timeouts return `504`, connection errors return `502`.
 
+## Audit ledger
+
+Every proxy call writes one tamper-evident `AuditLog` row to a per-organization hash chain. Quick checks:
+
+```bash
+KEY=<your-gmcp_-key>
+curl -H "Authorization: Bearer $KEY" http://localhost:3000/audit | jq
+curl -H "Authorization: Bearer $KEY" http://localhost:3000/audit/verify
+curl -H "Authorization: Bearer $KEY" http://localhost:3000/audit/export -o audit.ndjson
+```
+
+Schema, hash construction, and integrity guarantees are documented in `docs/audit.md`.
+
 ## Roadmap
 
 See `CHECKLIST.md` for the open execution list. Slack approval is still a stub log line — that's next.
