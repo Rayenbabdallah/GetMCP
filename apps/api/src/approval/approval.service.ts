@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ProxyService, AgentRequest } from '../proxy/proxy.service';
 import { AuditService } from '../audit/audit.service';
 import { SlackService } from '../slack/slack.service';
 import { decryptSecret } from '../crypto.util';
+import { MetricsService } from '../metrics/metrics.service';
 
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
 const MAX_BODY_BYTES = 256 * 1024;
@@ -41,6 +42,7 @@ export class ApprovalService {
     private readonly proxy: ProxyService,
     private readonly audit: AuditService,
     private readonly slack: SlackService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   async createPending(input: CreatePendingInput) {
@@ -97,6 +99,7 @@ export class ApprovalService {
       this.logger.error(`Slack post failed for pending ${pending.id}: ${err.message}`);
     }
 
+    this.metrics?.recordApproval('created');
     return pending;
   }
 
@@ -190,6 +193,7 @@ export class ApprovalService {
       this.logger.warn(`chat.update failed for ${pending.id}: ${err.message}`);
     }
 
+    this.metrics?.recordApproval('approved');
     return this.prisma.pendingRequest.findUnique({ where: { id: pending.id } });
   }
 
@@ -237,6 +241,7 @@ export class ApprovalService {
       this.logger.warn(`chat.update failed for ${pending.id}: ${err.message}`);
     }
 
+    this.metrics?.recordApproval('denied');
     return pending;
   }
 
@@ -271,6 +276,7 @@ export class ApprovalService {
       responseBytes: null,
       latencyMs: 0,
     });
+    this.metrics?.recordApproval('expired');
     return expired;
   }
 

@@ -18,6 +18,7 @@ import { AuditService } from '../audit/audit.service';
 import { AgentService } from '../agents/agent.service';
 import { ApprovalService } from '../approval/approval.service';
 import { PrismaService } from '../prisma.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Controller('proxy')
 export class ProxyController {
@@ -29,6 +30,7 @@ export class ProxyController {
     private readonly agentService: AgentService,
     private readonly approvals: ApprovalService,
     private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
   ) {}
 
   @Post('execute')
@@ -222,6 +224,8 @@ export class ProxyController {
     const finalize = (action: 'EXECUTED' | 'INCOMPLETE') => {
       if (recorded) return;
       recorded = true;
+      const dur = Date.now() - startedAt;
+      this.metrics.recordProxy(action, req.source, outcome.status, dur);
       this.audit.recordSafe({
         organizationId: org.organizationId,
         apiKeyId: org.apiKeyId,

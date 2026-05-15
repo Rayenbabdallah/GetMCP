@@ -1,7 +1,8 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { computeAuditHash, rowToHashable } from './canonical.util';
+import { MetricsService } from '../metrics/metrics.service';
 
 export interface AuditInput {
   organizationId: string;
@@ -34,7 +35,10 @@ export type VerifyResult =
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {}
 
   // Atomic, chain-extending insert. Serializable isolation prevents two
   // concurrent writers from claiming the same `seq` for one organization;
@@ -187,11 +191,14 @@ export class AuditService {
   // crash the response — they get logged loudly and (TODO) eventually
   // need an outbox + recovery worker.
   recordSafe(input: AuditInput): void {
-    this.record(input).catch((err) => {
-      this.logger.error(
-        `AUDIT WRITE FAILED for org=${input.organizationId} path=${input.path}: ${err.message}`,
-        err.stack,
-      );
-    });
+    this.record(input)
+      .then(() => this.metrics?.recordAudit('ok'))
+      .catch((err) => {
+        this.metrics?.recordAudit('failed');
+        this.logger.error(
+          `AUDIT WRITE FAILED for org=${input.organizationId} path=${input.path}: ${err.message}`,
+          err.stack,
+        );
+      });
   }
 }

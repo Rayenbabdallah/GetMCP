@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { Decision, EvalContext, evaluate, PolicyRuleLite } from './policy.engine';
 import { RateLimiter } from './rate-limiter';
+import { MetricsService } from '../metrics/metrics.service';
 
 interface CacheEntry {
   rules: PolicyRuleLite[];
@@ -17,6 +18,7 @@ export class PolicyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rateLimiter: RateLimiter,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   async getActiveRules(organizationId: string): Promise<PolicyRuleLite[]> {
@@ -53,6 +55,8 @@ export class PolicyService {
 
   async evaluate(ctx: EvalContext): Promise<Decision> {
     const rules = await this.getActiveRules(ctx.organizationId);
-    return evaluate(rules, ctx, this.rateLimiter);
+    const decision = evaluate(rules, ctx, this.rateLimiter);
+    this.metrics?.recordPolicy(decision.kind);
+    return decision;
   }
 }

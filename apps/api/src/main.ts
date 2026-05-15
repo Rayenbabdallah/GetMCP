@@ -1,11 +1,14 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
-  const logger = new Logger('Bootstrap');
+  const app = await NestFactory.create(AppModule, { bodyParser: false, bufferLogs: true });
+  app.useLogger(app.get(Logger));
+  // Drains in-flight requests + closes Prisma + stops sweepers cleanly on SIGINT/SIGTERM.
+  app.enableShutdownHooks();
 
   app.use(helmet());
 
@@ -21,8 +24,6 @@ async function bootstrap() {
   const limit = process.env.JSON_BODY_LIMIT || '1mb';
   const express = require('express');
 
-  // Capture the raw body on Slack's interaction route so we can verify the
-  // HMAC signature byte-for-byte. Slack sends application/x-www-form-urlencoded.
   const rawBodySaver = (req: any, _res: any, buf: Buffer, encoding: string) => {
     if (buf && buf.length) req.rawBody = buf.toString((encoding as BufferEncoding) || 'utf8');
   };
@@ -31,7 +32,6 @@ async function bootstrap() {
     express.urlencoded({ limit, extended: true, verify: rawBodySaver }),
   );
 
-  // Standard parsers for everything else.
   app.use(express.json({ limit }));
   app.use(express.urlencoded({ limit, extended: true }));
 
@@ -45,6 +45,6 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  logger.log(`API listening on :${port} (CORS: ${origins.length ? origins.join(', ') : 'disabled'})`);
+  app.get(Logger).log(`API listening on :${port} (CORS: ${origins.length ? origins.join(', ') : 'disabled'})`);
 }
 bootstrap();

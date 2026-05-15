@@ -25,8 +25,9 @@ The easiest way to run the GetMCP platform is via the included Docker Compose co
    ```bash
    docker-compose up -d postgres
    pnpm install
-   pnpm --filter api exec prisma db push
+   pnpm --filter api run db:migrate:deploy
    ```
+   For local schema iteration use `pnpm --filter api run db:migrate:dev` (creates a new migration when the schema diverges).
 
 3. **Start the platform**
    ```bash
@@ -51,6 +52,20 @@ pnpm test
 - **`apps/api` (NestJS):** The core intelligence engine. It parses OpenAPI specs, generates Two-MCP trust boundaries, and runs the Proxy Interceptor to evaluate real-time agent requests against your policies.
 - **`apps/web` (React/Vite):** The enterprise dashboard for managing policies, generating infrastructure, and viewing audit logs.
 - **`docker-compose.yml`**: Container orchestration for local and beta deployments.
+
+## Operability
+
+- **Logs**: structured JSON via pino, one line per request. Each line carries `req.id` (sourced from `x-request-id` header or generated). Override level with `LOG_LEVEL=debug|info|warn|error|silent`.
+- **Health**: `GET /health/live` (process up), `GET /health/ready` (DB reachable). Both `@Public`.
+- **Metrics**: `GET /metrics` exposes Prometheus text. Series:
+  - `getmcp_proxy_requests_total{action,source,upstream_status}` — proxy outcomes
+  - `getmcp_proxy_request_duration_ms_bucket{action,source}` — controller-entry to response-finish latency histogram
+  - `getmcp_policy_decisions_total{kind}` — engine outcome distribution
+  - `getmcp_audit_writes_total{result}` — `ok` vs `failed` audit writes (the headline reliability metric)
+  - `getmcp_approval_events_total{event}` — created / approved / denied / expired
+  - Plus `getmcp_*` Node defaults (CPU, heap, event loop lag).
+- **Migrations**: `prisma migrate` is the deploy path; `db push` is gone. Initial migration committed under `apps/api/prisma/migrations/20260515000000_init`.
+- **Shutdown**: `enableShutdownHooks()` on SIGINT/SIGTERM drains in-flight requests, closes Prisma, stops the approval sweeper.
 
 ## Authentication
 
