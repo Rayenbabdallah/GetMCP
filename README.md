@@ -20,6 +20,14 @@ The bootstrap script generates `.env` with fresh `POSTGRES_PASSWORD` + `KEY_ENCR
 
 Defaults: dashboard at `http://localhost:8080`, API at `http://localhost:3000`. Kubernetes deploy via Helm chart in `deploy/helm/getmcp/`. Full operations runbook in `docs/operations.md`.
 
+## Security
+
+- Threat model + data-at-rest catalog: [`docs/security.md`](docs/security.md)
+- Vulnerability disclosure: [`SECURITY.md`](SECURITY.md) (rayenbenabdallah88@gmail.com)
+- CI gates: `pnpm audit --audit-level=high` + GitHub CodeQL (`security-extended` suite) on every PR
+- DTO validation: `class-validator` decorators on every body, `forbidNonWhitelisted: true` rejects extra fields
+- Secrets at rest: AES-256-GCM (upstream auth, Slack tokens) + scrypt (API keys); the audit chain is sha256-linked and externally verifiable
+
 ## Production deploy
 
 - **Docker Compose**: `docker compose -f docker-compose.prod.yml up -d` after `bootstrap.sh`. Healthchecks, restart policies, log rotation, resource limits, and the migrate-before-start ordering are all wired in.
