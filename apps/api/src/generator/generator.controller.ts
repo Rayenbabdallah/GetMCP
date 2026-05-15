@@ -9,17 +9,10 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { GeneratorService, GenerationRequestDto } from './generator.service';
+import { GeneratorService } from './generator.service';
 import { ClassifierService } from './classifier.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
-
-interface OverrideDto {
-  specHash: string;
-  path: string;
-  method: string;
-  exposeExternally: boolean | null;
-  reason?: string;
-}
+import { ClassifyDto, GenerateDto, OverrideDto } from './generator.dto';
 
 @Controller('generator')
 export class GeneratorController {
@@ -29,10 +22,9 @@ export class GeneratorController {
   ) {}
 
   @Post('classify')
-  async classify(@CurrentOrg() org: AuthContext, @Body('openapiUrl') openapiUrl: string) {
-    if (!openapiUrl) throw new HttpException('openapiUrl is required', HttpStatus.BAD_REQUEST);
+  async classify(@CurrentOrg() org: AuthContext, @Body() body: ClassifyDto) {
     try {
-      const spec = await this.generatorService.fetchSpec(openapiUrl);
+      const spec = await this.generatorService.fetchSpec(body.openapiUrl);
       return await this.classifier.classify(org.organizationId, spec);
     } catch (err: any) {
       throw new HttpException(err.message || 'classification failed', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -41,12 +33,6 @@ export class GeneratorController {
 
   @Post('override')
   async override(@CurrentOrg() org: AuthContext, @Body() body: OverrideDto) {
-    if (!body.specHash || !body.path || !body.method) {
-      throw new HttpException('specHash, path, method required', HttpStatus.BAD_REQUEST);
-    }
-    if (body.exposeExternally !== null && typeof body.exposeExternally !== 'boolean') {
-      throw new HttpException('exposeExternally must be boolean or null', HttpStatus.BAD_REQUEST);
-    }
     try {
       return await this.classifier.setOverride({
         organizationId: org.organizationId,
@@ -63,10 +49,7 @@ export class GeneratorController {
   }
 
   @Post('generate')
-  async generateMcp(@CurrentOrg() org: AuthContext, @Body() request: GenerationRequestDto) {
-    if (!request.openapiUrl) {
-      throw new HttpException('openapiUrl is required', HttpStatus.BAD_REQUEST);
-    }
+  async generateMcp(@CurrentOrg() org: AuthContext, @Body() request: GenerateDto) {
     try {
       return await this.generatorService.generateTrustBoundaries(org.organizationId, request);
     } catch (err: any) {

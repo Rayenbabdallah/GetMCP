@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, NotFoundException } from '@
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from './current-org.decorator';
 import { mintApiKey } from './api-key.util';
+import { MintApiKeyDto } from './api-key.dto';
 
 @Controller('api-keys')
 export class ApiKeyController {
@@ -25,12 +26,12 @@ export class ApiKeyController {
 
   // Returns the plaintext key exactly once. Caller must store it.
   @Post()
-  async mint(@CurrentOrg() org: AuthContext, @Body('name') name: string) {
+  async mint(@CurrentOrg() org: AuthContext, @Body() body: MintApiKeyDto) {
     const minted = await mintApiKey();
     const row = await this.prisma.apiKey.create({
       data: {
         organizationId: org.organizationId,
-        name: name || 'unnamed',
+        name: body.name?.trim() || 'unnamed',
         prefix: minted.prefix,
         hash: minted.hash,
       },

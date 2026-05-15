@@ -1,18 +1,8 @@
-import { Body, Controller, Get, Patch, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { encryptSecret } from '../crypto.util';
-
-interface UpdateOrgDto {
-  name?: string;
-  upstreamBaseUrl?: string | null;
-  upstreamAuthHeader?: string | null;
-  upstreamTimeoutMs?: number;
-  // Slack — encrypted at rest. Pass null to clear.
-  slackBotToken?: string | null;
-  slackSigningSecret?: string | null;
-  slackDefaultChannel?: string | null;
-}
+import { UpdateOrgDto } from './org.dto';
 
 @Controller('orgs')
 export class OrgController {
@@ -50,31 +40,12 @@ export class OrgController {
     const data: Record<string, any> = {};
 
     if (body.name !== undefined) data.name = body.name;
-
-    if (body.upstreamBaseUrl !== undefined) {
-      if (body.upstreamBaseUrl !== null) {
-        try {
-          const u = new URL(body.upstreamBaseUrl);
-          if (!['http:', 'https:'].includes(u.protocol)) {
-            throw new Error('only http/https supported');
-          }
-        } catch {
-          throw new BadRequestException('upstreamBaseUrl must be a valid http/https URL');
-        }
-      }
-      data.upstreamBaseUrl = body.upstreamBaseUrl;
-    }
+    if (body.upstreamBaseUrl !== undefined) data.upstreamBaseUrl = body.upstreamBaseUrl;
+    if (body.upstreamTimeoutMs !== undefined) data.upstreamTimeoutMs = body.upstreamTimeoutMs;
 
     if (body.upstreamAuthHeader !== undefined) {
       data.upstreamAuthHeader =
         body.upstreamAuthHeader === null ? null : encryptSecret(body.upstreamAuthHeader);
-    }
-
-    if (body.upstreamTimeoutMs !== undefined) {
-      if (!Number.isInteger(body.upstreamTimeoutMs) || body.upstreamTimeoutMs < 100 || body.upstreamTimeoutMs > 120000) {
-        throw new BadRequestException('upstreamTimeoutMs must be an integer between 100 and 120000');
-      }
-      data.upstreamTimeoutMs = body.upstreamTimeoutMs;
     }
 
     if (body.slackBotToken !== undefined) {

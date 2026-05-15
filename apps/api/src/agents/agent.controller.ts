@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,21 +11,7 @@ import {
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AgentService } from './agent.service';
-
-interface CreateAgentDto {
-  name: string;
-  source: 'internal_mcp' | 'external_mcp';
-  tenantScope?: string | null;
-  enabled?: boolean;
-}
-
-interface UpdateAgentDto {
-  name?: string;
-  tenantScope?: string | null;
-  enabled?: boolean;
-}
-
-const VALID_SOURCES = new Set(['internal_mcp', 'external_mcp']);
+import { CreateAgentDto, UpdateAgentDto } from './agent.dto';
 
 @Controller('agents')
 export class AgentController {
@@ -45,10 +30,6 @@ export class AgentController {
 
   @Post()
   async create(@CurrentOrg() ctx: AuthContext, @Body() body: CreateAgentDto) {
-    if (!body.name || !body.name.trim()) throw new BadRequestException('name required');
-    if (!VALID_SOURCES.has(body.source)) {
-      throw new BadRequestException('source must be internal_mcp or external_mcp');
-    }
     return this.prisma.agentIdentity.create({
       data: {
         organizationId: ctx.organizationId,

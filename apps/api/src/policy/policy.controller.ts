@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,47 +11,8 @@ import {
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { PolicyService } from './policy.service';
-import { EvalContext, RuleType } from './policy.engine';
-
-const VALID_RULE_TYPES: ReadonlySet<string> = new Set([
-  'ALLOWLIST',
-  'BLOCK',
-  'AUDIT',
-  'RATE_LIMIT',
-  'MUTATION_APPROVAL',
-]);
-
-interface CreatePolicyDto {
-  name: string;
-  description: string;
-  ruleType: RuleType;
-  targetMethod: string;
-  targetPath: string;
-  action?: string;
-  actionConfig?: Record<string, any>;
-  priority?: number;
-  isActive?: boolean;
-}
-
-interface UpdatePolicyDto {
-  name?: string;
-  description?: string;
-  targetMethod?: string;
-  targetPath?: string;
-  action?: string;
-  actionConfig?: Record<string, any>;
-  priority?: number;
-  isActive?: boolean;
-}
-
-interface SimulateDto {
-  method: string;
-  path: string;
-  source: 'internal_mcp' | 'external_mcp';
-  agentId?: string | null;
-  tenantId?: string | null;
-  reasoning?: string | null;
-}
+import { EvalContext } from './policy.engine';
+import { CreatePolicyDto, UpdatePolicyDto, SimulateDto } from './policy.dto';
 
 @Controller('policies')
 export class PolicyController {
@@ -71,12 +31,6 @@ export class PolicyController {
 
   @Post()
   async create(@CurrentOrg() org: AuthContext, @Body() body: CreatePolicyDto) {
-    if (!body.name?.trim()) throw new BadRequestException('name required');
-    if (!VALID_RULE_TYPES.has(body.ruleType))
-      throw new BadRequestException(`ruleType must be one of ${[...VALID_RULE_TYPES].join(', ')}`);
-    if (!body.targetMethod) throw new BadRequestException('targetMethod required');
-    if (!body.targetPath) throw new BadRequestException('targetPath required');
-
     const created = await this.prisma.policyRule.create({
       data: {
         organizationId: org.organizationId,
@@ -132,9 +86,6 @@ export class PolicyController {
   // Document this in the response so the caller knows.
   @Post('simulate')
   async simulate(@CurrentOrg() org: AuthContext, @Body() body: SimulateDto) {
-    if (!body.method || !body.path || !body.source) {
-      throw new BadRequestException('method, path, source required');
-    }
     const ctx: EvalContext = {
       organizationId: org.organizationId,
       method: body.method,
