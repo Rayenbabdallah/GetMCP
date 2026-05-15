@@ -93,10 +93,11 @@ function Footer() {
           { label: 'API reference', to: '/docs/api' },
           { label: 'Sign in', to: '/login' },
         ]} />
-        <FooterCol title="Company" links={[
+        <FooterCol title="Project" links={[
           { label: 'GitHub', to: 'https://github.com/Rayenbabdallah/GetMCP', external: true },
           { label: 'Security', to: 'https://github.com/Rayenbabdallah/GetMCP/blob/main/SECURITY.md', external: true },
-          { label: 'Vision', to: 'https://github.com/Rayenbabdallah/GetMCP/blob/main/GETMCP_BIBLE.md', external: true },
+          { label: 'Changelog', to: 'https://github.com/Rayenbabdallah/GetMCP/blob/main/CHANGELOG.md', external: true },
+          { label: 'License (Apache 2.0)', to: 'https://github.com/Rayenbabdallah/GetMCP/blob/main/LICENSE', external: true },
         ]} />
       </div>
       <div className="border-t border-slate-200 bg-white">

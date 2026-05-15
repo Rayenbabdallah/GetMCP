@@ -128,7 +128,7 @@ Behavior: deducts 1 token per matching request. On exhaustion: terminal `429` wi
 
 **Tenant required**: `RATE_LIMIT` requires the request to carry `x-tenant-id`. Without it, the rule blocks with `Policy Violation: missing x-tenant-id` regardless of bucket state — closing the easy bypass.
 
-**Multi-instance gotcha**: the limiter is in-memory per API replica. With N replicas the global cap is `N × limit`. Size accordingly, or move to Redis (open in CHECKLIST §6).
+**Multi-instance gotcha**: the limiter is in-memory per API replica. With N replicas the global cap is `N × limit`. Size accordingly, or back the limiter with a shared Redis store (tracked in [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues)).
 
 ## MUTATION_APPROVAL
 
@@ -159,7 +159,7 @@ Behavior:
 5. On Approve: replays the request through the proxy with `bypassApproval=true` (other rules — BLOCK / RATE_LIMIT / AUDIT — still apply), captures the upstream response (status + headers + JSON body up to 256KB), surfaces it to the polling caller. Approver's Slack identity recorded in the audit row.
 6. On Deny / Expire: writes a `BLOCKED` audit row, no upstream call.
 
-**Without a Slack bot token configured**: the rule still creates the `PendingRequest` row. The dashboard can drive the decision via a future approval UI; for now, an operator can mark the row by direct DB update. Tracked in CHECKLIST §7.
+**Without a Slack bot token configured**: the rule still creates the `PendingRequest` row. The dashboard can drive the decision via a future approval UI; for now, an operator can mark the row by direct DB update.
 
 ## Worked example: realistic ruleset for a payments API
 
@@ -257,7 +257,7 @@ The response includes a `trace` showing each rule's outcome — the canonical wa
 
 All write operations invalidate the in-memory rule cache for the org (5s TTL otherwise). Cache invalidation is per-instance; multi-instance deployments see new rules within ≤5s on other instances.
 
-## Open work (tracked in CHECKLIST.md §6)
+## Open work
 
 - Move RATE_LIMIT bucket to Redis for global limits across replicas
 - Add `EXTERNAL_ONLY` / `INTERNAL_ONLY` source filter as an explicit DTO field instead of an implicit per-rule-type rule

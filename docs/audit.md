@@ -72,7 +72,7 @@ On a serialization conflict (Prisma `P2034`) or unique violation on `(organizati
 - `{ valid: true, rowCount, lastHash }` — every row's `prevHash` matches the prior row's `hash`, every row's recomputed `hash` matches its stored `hash`, and `seq` is contiguous from 1.
 - `{ valid: false, brokenAtSeq, reason: 'gap_in_seq' | 'prev_hash_mismatch' | 'hash_mismatch', expected, actual }` — the first failure encountered. The remainder of the chain is not checked because once a link is broken, downstream comparisons are uninterpretable.
 
-A clean verification result is the property an auditor needs: it asserts that no row was modified, deleted, inserted, or reordered after the fact, given that the head hash itself was not also tampered with. To extend this guarantee, periodically anchor `(orgId, lastAuditSeq, lastAuditHash)` to an external append-only store (object lock, transparency log, customer's own infra) — see open items in §4 of `CHECKLIST.md`.
+A clean verification result is the property an auditor needs: it asserts that no row was modified, deleted, inserted, or reordered after the fact, given that the head hash itself was not also tampered with. To extend this guarantee, periodically anchor `(orgId, lastAuditSeq, lastAuditHash)` to an external append-only store (object lock, transparency log, customer's own infra) — see open items below.
 
 ## Listing & export
 
@@ -81,7 +81,7 @@ A clean verification result is the property an auditor needs: it asserts that no
 
 Both are scoped to the caller's organization by `AuthGuard`. Cross-tenant reads are not possible without a valid bearer token for the target org.
 
-## Open issues (tracked in CHECKLIST.md §4)
+## Open issues
 
 - Audit writes from the proxy hot path are fire-and-log on failure. A real outbox + recovery worker still needs to land — today, an ack'd response with a failed audit insert produces a missing seq, which `verify` will surface as `gap_in_seq`.
 - No periodic external anchoring of the head hash yet.

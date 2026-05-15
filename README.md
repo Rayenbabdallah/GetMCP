@@ -265,7 +265,7 @@ Schema, hash construction, and integrity guarantees are documented in `docs/audi
 
 ## Roadmap
 
-See [`CHECKLIST.md`](CHECKLIST.md) for the open, ranked execution list and [`CHANGELOG.md`](CHANGELOG.md) for what shipped in `v0.1.0`.
+See [`CHANGELOG.md`](CHANGELOG.md) for what shipped in `v0.1.0`. Roadmap is tracked in [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues) and [Discussions](https://github.com/Rayenbabdallah/GetMCP/discussions).
 
 ## Contributing
 

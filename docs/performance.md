@@ -1,6 +1,6 @@
 # Performance & Scaling
 
-## SLA targets (CHECKLIST §12)
+## SLA targets
 
 | Path | p95 added | p99 added | Per-instance RPS | Notes |
 |---|---|---|---|---|
@@ -57,7 +57,7 @@ Rule of thumb: `connection_limit ≈ 2 × expected concurrent in-flight DB queri
 
 ### Rate limiter scope
 
-The in-app `RATE_LIMIT` policy is **per-instance** in v1. With N replicas, the global limit is `N × actionConfig.limit`. Size accordingly, or move the limiter to Redis (open in CHECKLIST §6).
+The in-app `RATE_LIMIT` policy is **per-instance** in v1. With N replicas, the global limit is `N × actionConfig.limit`. Size accordingly, or back the limiter with a shared Redis store (open work).
 
 ### Compression
 

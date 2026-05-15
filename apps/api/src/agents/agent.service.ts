@@ -15,9 +15,9 @@ interface CacheEntry {
   expiresAt: number;
 }
 
-// 5s TTL — matches the SLA in CHECKLIST §5 ("revocation takes effect within 5s").
+// 5s TTL — agent revocation takes effect within 5 seconds platform-wide.
 // Single-instance only; multi-instance deployments need a Redis pub/sub
-// invalidation channel — see open items in §5.
+// invalidation channel for sub-TTL propagation.
 const TTL_MS = 5_000;
 
 @Injectable()

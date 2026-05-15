@@ -94,7 +94,7 @@ export function Approvals() {
       <Card className="mb-4 border-amber-200 bg-amber-50/40">
         <div className="px-6 py-4 text-sm text-amber-900">
           <strong>v1 limitation:</strong> there's no <code className="font-mono">/approvals?status=PENDING</code> list
-          endpoint yet (tracked in CHECKLIST §7). This page shows audit rows tagged{' '}
+          endpoint yet. This page shows audit rows tagged{' '}
           <Badge tone="warning">AWAITING_APPROVAL</Badge> as a proxy. Approve/Deny happens from the Slack message;
           poll an individual request via <code className="font-mono">GET /approvals/:id</code>.
         </div>

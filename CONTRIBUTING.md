@@ -23,7 +23,6 @@ If a test breaks, the build breaks. CI gates merges on lint, typecheck, tests, p
 | `deploy/helm/getmcp` | Production Helm chart |
 | `deploy/scripts` | Bootstrap, backup, restore |
 | `docs/` | Operator + auditor documentation |
-| `CHECKLIST.md` | Open work, ranked |
 
 ## Local development
 
@@ -45,7 +44,7 @@ The API needs a running Postgres. Either run `bootstrap.sh` once and reuse its `
 - **Generator heuristic improvements** — false-positive / false-negative cases against real OpenAPI specs.
 - **Documentation fixes** — typo or clarity PRs are merged fast.
 - **New rule types** — discuss in an issue first; the policy engine is the most-tested surface and changes need to preserve determinism.
-- **Multi-instance Redis backends** for the rate limiter and cache — explicitly tracked in `CHECKLIST.md` §6 and §8.
+- **Multi-instance Redis backends** for the rate limiter and the agent / policy caches — currently in-memory per pod.
 
 ## What needs an issue first
 

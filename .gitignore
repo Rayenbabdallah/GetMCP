@@ -45,3 +45,8 @@ coverage/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Internal — strategic notes kept local, not published
+CLAUDE.md
+CHECKLIST.md
+GETMCP_BIBLE.md

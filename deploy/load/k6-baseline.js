@@ -17,9 +17,8 @@
 // Usage:
 //   k6 run -e BASE_URL=... -e API_KEY=... -e AGENT_ID=... deploy/load/k6-baseline.js
 //
-// Reads SLA targets from CHECKLIST.md §12: p95 added latency < 25ms,
-// p99 < 80ms, 1000 RPS per instance. The thresholds below fail the run if
-// missed — surface as exit code != 0 in CI.
+// SLA targets: p95 added latency < 25ms, p99 < 80ms, 1000 RPS per instance.
+// The thresholds below fail the run if missed — surface as exit code != 0 in CI.
 
 import http from 'k6/http';
 import { check } from 'k6';
@@ -60,7 +59,7 @@ export const options = {
   thresholds: {
     'http_req_failed': ['rate<0.01'],
     'http_req_duration{scenario:health}': ['p(95)<10'],
-    // CHECKLIST §12 SLA: p95 added latency < 25ms, p99 < 80ms.
+    // SLA: p95 added latency < 25ms, p99 < 80ms.
     // "Added" here = total minus upstream. With a fake upstream that returns
     // immediately the total IS the added latency.
     'policy_simulate_duration_ms': ['p(95)<25', 'p(99)<80'],

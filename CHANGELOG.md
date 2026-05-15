@@ -4,8 +4,7 @@ All notable changes to GetMCP. The format is based on [Keep a Changelog](https:/
 
 ## [Unreleased]
 
-### Open work
-See [`CHECKLIST.md`](CHECKLIST.md) for the ranked roadmap.
+Track open work in [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues).
 
 ## [0.1.0] — 2026-05-15
 

@@ -93,7 +93,7 @@ The hash chain must report `valid: true`. If a row was lost in the restore, you'
 | Slack secrets per org | `PATCH /orgs/me` with new values | None (cache TTL ≤ 5s) |
 | Per-org API keys | `POST /api-keys` mints new, `DELETE /api-keys/:id` revokes old | None (cache TTL ≤ 5s) |
 
-Plan `KEY_ENCRYPTION_KEY` rotation carefully — there is no online re-encryption job yet (tracked in `CHECKLIST.md` §11).
+Plan `KEY_ENCRYPTION_KEY` rotation carefully — there is no online re-encryption job yet.
 
 ## Health & monitoring
 

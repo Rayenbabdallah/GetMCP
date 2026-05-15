@@ -12,7 +12,7 @@ interface Bucket {
 
 // In-memory token bucket. Single-instance — multi-instance deployments need
 // Redis (or another shared store) for global limits. The interface here is
-// designed to be drop-in replaceable; see CHECKLIST §6.
+// designed to be drop-in replaceable.
 @Injectable()
 export class RateLimiter {
   private buckets = new Map<string, Bucket>();

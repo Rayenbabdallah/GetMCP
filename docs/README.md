@@ -25,5 +25,5 @@ In production, set `ENABLE_DOCS=true` only if you want the docs publicly reachab
 
 - **Repository**: <https://github.com/Rayenbabdallah/GetMCP>
 - **Vulnerability disclosure**: see [`../SECURITY.md`](../SECURITY.md) (rayenbenabdallah88@gmail.com)
-- **Roadmap & open work**: [`../CHECKLIST.md`](../CHECKLIST.md)
-- **Vision & business case**: [`../GETMCP_BIBLE.md`](../GETMCP_BIBLE.md)
+- **Changelog**: [`../CHANGELOG.md`](../CHANGELOG.md)
+- **Roadmap**: [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues) and [Discussions](https://github.com/Rayenbabdallah/GetMCP/discussions)
