@@ -3,7 +3,10 @@ import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { encryptSecret } from '../crypto.util';
 import { UpdateOrgDto } from './org.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Organizations')
+@ApiBearerAuth('org-api-key')
 @Controller('orgs')
 export class OrgController {
   constructor(private readonly prisma: PrismaService) {}

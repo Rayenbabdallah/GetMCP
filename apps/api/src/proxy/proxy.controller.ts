@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Transform } from 'stream';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProxyService, AgentRequest } from './proxy.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AuditService } from '../audit/audit.service';
@@ -20,6 +21,8 @@ import { ApprovalService } from '../approval/approval.service';
 import { PrismaService } from '../prisma.service';
 import { MetricsService } from '../metrics/metrics.service';
 
+@ApiTags('Proxy')
+@ApiBearerAuth('org-api-key')
 @Controller('proxy')
 export class ProxyController {
   private readonly logger = new Logger(ProxyController.name);

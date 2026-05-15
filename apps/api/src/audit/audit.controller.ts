@@ -3,7 +3,10 @@ import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AuditService } from './audit.service';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Audit')
+@ApiBearerAuth('org-api-key')
 @Controller('audit')
 export class AuditController {
   constructor(

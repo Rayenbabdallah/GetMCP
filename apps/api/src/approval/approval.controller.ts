@@ -1,7 +1,10 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApprovalService } from './approval.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Approvals')
+@ApiBearerAuth('org-api-key')
 @Controller('approvals')
 export class ApprovalController {
   constructor(private readonly approvals: ApprovalService) {}

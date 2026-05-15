@@ -12,7 +12,10 @@ import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AgentService } from './agent.service';
 import { CreateAgentDto, UpdateAgentDto } from './agent.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Agents')
+@ApiBearerAuth('org-api-key')
 @Controller('agents')
 export class AgentController {
   constructor(

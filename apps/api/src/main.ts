@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
@@ -56,6 +57,29 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Swagger UI at /docs and machine-readable OpenAPI spec at /docs-json.
+  // Disabled by default in production — set ENABLE_DOCS=true to expose.
+  // The docs route is unauthenticated; if exposed externally, gate at the
+  // ingress (auth header, IP allowlist, or a separate hostname).
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_DOCS === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('GetMCP API')
+      .setDescription(
+        'Zero Trust for AI agents. Generates and protects MCP servers. ' +
+          'See https://github.com/Rayenbabdallah/GetMCP for the full project.',
+      )
+      .setVersion('0.1.0')
+      .addBearerAuth(
+        { type: 'http', scheme: 'bearer', bearerFormat: 'gmcp_…' },
+        'org-api-key',
+      )
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

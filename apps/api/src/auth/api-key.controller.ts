@@ -3,7 +3,10 @@ import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from './current-org.decorator';
 import { mintApiKey } from './api-key.util';
 import { MintApiKeyDto } from './api-key.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('API Keys')
+@ApiBearerAuth('org-api-key')
 @Controller('api-keys')
 export class ApiKeyController {
   constructor(private readonly prisma: PrismaService) {}

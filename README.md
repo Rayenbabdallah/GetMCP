@@ -8,6 +8,10 @@ Welcome to the GetMCP Beta. This guide outlines how to deploy the GetMCP Enterpr
 - pnpm 9+
 - PostgreSQL (if running outside of Docker)
 
+## Documentation
+
+Full operator + auditor docs in [`docs/`](docs/). Start with [`docs/quickstart.md`](docs/quickstart.md) — zero to a proxied request in 10 minutes. Live Swagger UI at `/docs` when the API is running in dev or with `ENABLE_DOCS=true`.
+
 ## Quick Start (one command)
 
 ```bash

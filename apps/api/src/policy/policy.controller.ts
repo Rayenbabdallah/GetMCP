@@ -13,7 +13,10 @@ import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { PolicyService } from './policy.service';
 import { EvalContext } from './policy.engine';
 import { CreatePolicyDto, UpdatePolicyDto, SimulateDto } from './policy.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Policies')
+@ApiBearerAuth('org-api-key')
 @Controller('policies')
 export class PolicyController {
   constructor(

@@ -13,7 +13,10 @@ import { GeneratorService } from './generator.service';
 import { ClassifierService } from './classifier.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { ClassifyDto, GenerateDto, OverrideDto } from './generator.dto';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Generator')
+@ApiBearerAuth('org-api-key')
 @Controller('generator')
 export class GeneratorController {
   constructor(
