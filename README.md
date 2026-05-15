@@ -20,6 +20,14 @@ The bootstrap script generates `.env` with fresh `POSTGRES_PASSWORD` + `KEY_ENCR
 
 Defaults: dashboard at `http://localhost:8080`, API at `http://localhost:3000`. Kubernetes deploy via Helm chart in `deploy/helm/getmcp/`. Full operations runbook in `docs/operations.md`.
 
+## Performance
+
+- Targets and tuning knobs: [`docs/performance.md`](docs/performance.md)
+- Load tests: `deploy/load/k6-baseline.js` asserts SLA thresholds (p95 < 25ms simulate, p95 < 50ms proxy, < 1% errors). See `deploy/load/README.md` for invocation.
+- Caches: 5s in-memory TTL on policy rules + agent identities. Audit writes are fire-and-forget off the response path.
+- Compression enabled for JSON responses, **explicitly skipped on `/proxy/execute`** so the streamed upstream response isn't buffered.
+- For multi-replica deploys: tune `?connection_limit=` in `DATABASE_URL` (default 3 on a 1-vCPU pod is too low for 1000 RPS).
+
 ## Security
 
 - Threat model + data-at-rest catalog: [`docs/security.md`](docs/security.md)

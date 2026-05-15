@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
+import compression from 'compression';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -11,6 +12,19 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   app.use(helmet());
+
+  // Compression for JSON-heavy responses (audit list, classifications, policies).
+  // Skipped for the proxy stream — compression buffers chunked responses, which
+  // would defeat the streaming pass-through and inflate p95 on large bodies.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.path.startsWith('/proxy/execute')) return false;
+        if (req.path.startsWith('/audit/export')) return false; // already streaming NDJSON
+        return compression.filter(req, res);
+      },
+    }),
+  );
 
   const origins = (process.env.CORS_ORIGINS || '')
     .split(',')
