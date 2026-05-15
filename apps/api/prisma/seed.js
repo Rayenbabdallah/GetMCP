@@ -41,30 +41,33 @@ async function main() {
         targetPath: '/v1/refunds',
         action: 'SLACK_APPROVAL',
         actionConfig: { channel: '#finance-ops' },
+        priority: 50,
         isActive: true,
       },
       {
         organizationId: org.id,
         name: 'Tenant Isolation Quota',
         description:
-          'Agents acting on behalf of a tenant cannot exceed 50 read queries per minute to prevent DB monopolization.',
+          'Agents acting on behalf of a tenant cannot exceed 50 mutations per minute to prevent DB monopolization.',
         ruleType: 'RATE_LIMIT',
         targetMethod: 'POST',
         targetPath: '*',
-        action: 'BLOCK',
-        actionConfig: {},
+        action: 'RATE_LIMIT',
+        actionConfig: { limit: 50, windowMs: 60000, scope: 'agent+tenant' },
+        priority: 100,
         isActive: true,
       },
       {
         organizationId: org.id,
         name: 'Mandatory Context Logging',
         description:
-          'All requests must include a valid X-Agent-Reasoning header detailing why the action was taken.',
+          'All requests must include a non-trivial X-Agent-Reasoning header explaining the action.',
         ruleType: 'AUDIT',
         targetMethod: '*',
         targetPath: '*',
         action: 'REQUIRE_HEADER',
         actionConfig: {},
+        priority: 10,
         isActive: true,
       },
     ],
@@ -94,7 +97,7 @@ async function main() {
   console.log(`  ${key.plaintext}`);
   console.log('');
   console.log('Test it:');
-  console.log(`  curl -H "Authorization: Bearer ${key.plaintext}" http://localhost:3000/proxy/policies`);
+  console.log(`  curl -H "Authorization: Bearer ${key.plaintext}" http://localhost:3000/policies`);
   console.log('');
   console.log('Proxy a request as the internal agent:');
   console.log(`  curl -X POST http://localhost:3000/proxy/execute \\`);

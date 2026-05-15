@@ -3,10 +3,6 @@ import {
   Post,
   Body,
   Headers,
-  Get,
-  Patch,
-  Param,
-  NotFoundException,
   Res,
   HttpException,
   HttpStatus,
@@ -17,7 +13,6 @@ import {
 import type { Response } from 'express';
 import { Transform } from 'stream';
 import { ProxyService, AgentRequest } from './proxy.service';
-import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
 import { AuditService } from '../audit/audit.service';
 import { AgentService } from '../agents/agent.service';
@@ -28,7 +23,6 @@ export class ProxyController {
 
   constructor(
     private readonly proxyService: ProxyService,
-    private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly agentService: AgentService,
   ) {}
@@ -53,7 +47,6 @@ export class ProxyController {
 
     const agent = await this.agentService.resolve(org.organizationId, agentIdHeader);
     if (!agent) {
-      // Audited as a system-level block — no agent attribution since none was resolvable.
       this.audit.recordSafe({
         organizationId: org.organizationId,
         apiKeyId: org.apiKeyId,
@@ -111,6 +104,7 @@ export class ProxyController {
       query: body.query,
       body: body.payload,
       organizationId: org.organizationId,
+      agentId: agent.id,
     };
 
     let outcome;
@@ -118,10 +112,16 @@ export class ProxyController {
       outcome = await this.proxyService.interceptAndExecute(req);
     } catch (e) {
       const status = e instanceof HttpException ? e.getStatus() : 500;
+      const responseBody = e instanceof HttpException ? (e.getResponse() as any) : null;
       const reason =
-        e instanceof HttpException
-          ? ((e.getResponse() as any)?.reason ?? e.message)
-          : (e as Error).message;
+        responseBody?.reason ?? (e instanceof Error ? e.message : 'unknown error');
+
+      // Surface Retry-After for 429 from rate-limit decisions.
+      if (status === HttpStatus.TOO_MANY_REQUESTS && responseBody?.retryAfterMs) {
+        const seconds = Math.max(1, Math.ceil(responseBody.retryAfterMs / 1000));
+        res.setHeader('Retry-After', String(seconds));
+      }
+
       this.audit.recordSafe({
         organizationId: org.organizationId,
         apiKeyId: org.apiKeyId,
@@ -212,26 +212,5 @@ export class ProxyController {
     });
 
     outcome.stream.pipe(counter).pipe(res);
-  }
-
-  @Get('policies')
-  getPolicies(@CurrentOrg() org: AuthContext) {
-    return this.prisma.policyRule.findMany({
-      where: { organizationId: org.organizationId },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  @Patch('policies/:id')
-  async togglePolicy(
-    @CurrentOrg() org: AuthContext,
-    @Param('id') id: string,
-    @Body('isActive') isActive: boolean,
-  ) {
-    const existing = await this.prisma.policyRule.findFirst({
-      where: { id, organizationId: org.organizationId },
-    });
-    if (!existing) throw new NotFoundException();
-    return this.prisma.policyRule.update({ where: { id }, data: { isActive } });
   }
 }

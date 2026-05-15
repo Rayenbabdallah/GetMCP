@@ -107,6 +107,38 @@ curl -X POST http://localhost:3000/proxy/execute \
 curl -X DELETE http://localhost:3000/agents/$AGENT_ID -H "Authorization: Bearer $KEY"
 ```
 
+## Policy engine
+
+Five rule types, evaluated in `priority asc, createdAt asc` order. First terminal decision wins.
+
+| ruleType | What it does | actionConfig |
+|---|---|---|
+| `ALLOWLIST` | Short-circuits to allow; skips later BLOCK/RATE_LIMIT for this match. | — |
+| `BLOCK` | Terminal deny → `403`. | — |
+| `AUDIT` | Rejects requests whose `x-agent-reasoning` is missing, < 10 chars, or boilerplate (`test`, `placeholder`, etc.). | — |
+| `RATE_LIMIT` | Token bucket per `(orgId, agentId, tenantId)`. Returns `429` with `Retry-After`. External agents only. | `{"limit":50,"windowMs":60000,"scope":"agent+tenant"}` |
+| `MUTATION_APPROVAL` | Holds the request, returns `202 AWAITING_APPROVAL`, fires Slack stub (real flow lands in §7). External agents only. | `{"channel":"#finance-ops"}` |
+
+Path templates support exact (`/v1/refunds`), params (`/v1/users/:id`), prefix (`/v1/foo/*`), and `*`. Old `String.includes` matching is gone — `/v1/refunds-undo` no longer matches `/v1/refunds`.
+
+```bash
+KEY=<your-gmcp_-key>
+
+# Full CRUD
+curl http://localhost:3000/policies -H "Authorization: Bearer $KEY"
+curl -X POST http://localhost:3000/policies -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"block deletes","ruleType":"BLOCK","targetMethod":"DELETE","targetPath":"/v1/*","priority":10}'
+curl -X PATCH http://localhost:3000/policies/ID -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" -d '{"isActive":false}'
+curl -X DELETE http://localhost:3000/policies/ID -H "Authorization: Bearer $KEY"
+
+# Dry-run: shows which rules fire and why, without forwarding upstream
+curl -X POST http://localhost:3000/policies/simulate -H "Authorization: Bearer $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"method":"DELETE","path":"/v1/refunds/abc","source":"external_mcp","tenantId":"t-1","reasoning":"customer #321 requested rollback"}'
+```
+
 ## Audit ledger
 
 Every proxy call writes one tamper-evident `AuditLog` row to a per-organization hash chain. Quick checks:

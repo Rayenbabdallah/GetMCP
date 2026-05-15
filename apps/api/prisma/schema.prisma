@@ -72,11 +72,12 @@ model PolicyRule {
   organizationId String
   name           String
   description    String
-  ruleType       String       // "MUTATION_APPROVAL", "RATE_LIMIT", "AUDIT"
+  ruleType       String       // "ALLOWLIST" | "BLOCK" | "AUDIT" | "RATE_LIMIT" | "MUTATION_APPROVAL"
   targetMethod   String       // "POST", "PUT", "*"
-  targetPath     String       // "/v1/refunds", "*"
-  action         String       // "BLOCK", "SLACK_APPROVAL", "REQUIRE_HEADER"
-  actionConfig   Json         // e.g. {"channel": "#finance-ops"}
+  targetPath     String       // "/v1/refunds", "/v1/users/:id", "/v1/foo/*", "*"
+  action         String       // "BLOCK", "SLACK_APPROVAL", "REQUIRE_HEADER", "ALLOW", "RATE_LIMIT"
+  actionConfig   Json         // e.g. {"channel":"#finance-ops"} | {"limit":100,"windowMs":60000,"scope":"agent+tenant"}
+  priority       Int          @default(100)  // lower = evaluated first
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -84,6 +85,7 @@ model PolicyRule {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, isActive])
+  @@index([organizationId, priority])
 }
 
 // Authorized Agents — identities the proxy recognizes via x-agent-id header.

@@ -3,6 +3,8 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 import type { Readable } from 'stream';
 import { PrismaService } from '../prisma.service';
 import { decryptSecret } from '../crypto.util';
+import { PolicyService } from '../policy/policy.service';
+import { Decision } from '../policy/policy.engine';
 
 export interface AgentRequest {
   method: string;
@@ -13,18 +15,17 @@ export interface AgentRequest {
   query?: Record<string, any>;
   body?: any;
   organizationId: string;
+  agentId?: string | null;
 }
 
-// Decision returned to the caller without touching the upstream.
 export interface PolicyOutcome {
   kind: 'policy';
   allowed: false;
   status: 'BLOCKED' | 'AWAITING_APPROVAL';
   reason: string;
+  decision: Decision;
 }
 
-// Faithful pass-through of the upstream response. The controller writes
-// `status` + `headers` + pipes `stream` into res.
 export interface ProxiedResponse {
   kind: 'proxied';
   status: number;
@@ -34,8 +35,6 @@ export interface ProxiedResponse {
 
 export type ProxyOutcome = PolicyOutcome | ProxiedResponse;
 
-// Headers we never forward upstream — either GetMCP-internal context, hop-by-hop
-// per RFC 7230, or auth that must not leak to a third party.
 const STRIP_REQUEST_HEADERS = new Set([
   'authorization',
   'host',
@@ -50,12 +49,12 @@ const STRIP_REQUEST_HEADERS = new Set([
   'upgrade',
   'cookie',
   'x-tenant-id',
+  'x-agent-id',
   'x-agent-source',
   'x-agent-reasoning',
   'x-request-id',
 ]);
 
-// Hop-by-hop headers we never echo back to the caller.
 const STRIP_RESPONSE_HEADERS = new Set([
   'connection',
   'keep-alive',
@@ -71,10 +70,13 @@ const STRIP_RESPONSE_HEADERS = new Set([
 export class ProxyService {
   private readonly logger = new Logger(ProxyService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly policy: PolicyService,
+  ) {}
 
   async interceptAndExecute(req: AgentRequest): Promise<ProxyOutcome> {
-    const { method, path, source, headers, tenantId, organizationId } = req;
+    const { method, path, source, headers, organizationId } = req;
     if (!organizationId) {
       throw new HttpException(
         { allowed: false, status: 'BLOCKED', reason: 'Missing organization context' },
@@ -82,55 +84,54 @@ export class ProxyService {
       );
     }
     this.logger.log(`Intercepting [${method}] ${path} from ${source} (org=${organizationId})`);
-
     const startTime = process.hrtime();
 
-    const activeRules = await this.prisma.policyRule.findMany({
-      where: { organizationId, isActive: true },
+    const decision = await this.policy.evaluate({
+      organizationId,
+      method,
+      path,
+      source,
+      agentId: req.agentId ?? null,
+      tenantId: req.tenantId ?? null,
+      reasoning: headers?.['x-agent-reasoning'] ?? null,
     });
 
-    for (const rule of activeRules) {
-      const methodMatches =
-        rule.targetMethod === '*' || rule.targetMethod.toUpperCase() === method.toUpperCase();
-      const pathMatches = rule.targetPath === '*' || path.includes(rule.targetPath);
-
-      if (source === 'external_mcp' && methodMatches && pathMatches) {
-        switch (rule.ruleType) {
-          case 'AUDIT':
-            if (!headers || !headers['x-agent-reasoning']) {
-              this.logger.warn(`Blocked by Rule [${rule.name}] - Missing Audit Context`);
-              throw new HttpException(
-                { allowed: false, status: 'BLOCKED', reason: `Policy Violation: ${rule.description}` },
-                HttpStatus.FORBIDDEN,
-              );
-            }
-            break;
-
-          case 'MUTATION_APPROVAL': {
-            this.logger.warn(`Intercepted by Rule [${rule.name}] - Triggering Approval`);
-            const config = rule.actionConfig as any;
-            this.dispatchApprovalWebhook(config?.channel || '#ops', req);
-            return {
-              kind: 'policy',
-              allowed: false,
-              status: 'AWAITING_APPROVAL',
-              reason: `Policy Engine intercepted execution: ${rule.description}`,
-            };
-          }
-
-          case 'RATE_LIMIT':
-            if (!tenantId) {
-              this.logger.error(`Blocked by Rule [${rule.name}] - Missing Tenant Isolation`);
-              throw new HttpException(
-                { allowed: false, status: 'BLOCKED', reason: `Policy Violation: ${rule.description}` },
-                HttpStatus.FORBIDDEN,
-              );
-            }
-            break;
-        }
-      }
+    if (decision.kind === 'block') {
+      this.logger.warn(`Blocked by Rule [${decision.rule.name}]: ${decision.reason}`);
+      throw new HttpException(
+        { allowed: false, status: 'BLOCKED', reason: decision.reason },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (decision.kind === 'rate_limited') {
+      this.logger.warn(
+        `Rate-limited by Rule [${decision.rule.name}], retry in ${decision.retryAfterMs}ms`,
+      );
+      throw new HttpException(
+        {
+          allowed: false,
+          status: 'BLOCKED',
+          reason: `Rate limit exceeded for rule "${decision.rule.name}"`,
+          retryAfterMs: decision.retryAfterMs,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    if (decision.kind === 'awaiting_approval') {
+      this.logger.warn(
+        `Intercepted by Rule [${decision.rule.name}] - notifying ${decision.channel}`,
+      );
+      this.dispatchApprovalWebhook(decision.channel, req);
+      return {
+        kind: 'policy',
+        allowed: false,
+        status: 'AWAITING_APPROVAL',
+        reason: decision.reason,
+        decision,
+      };
     }
 
+    // decision.kind === 'allow'
     const proxied = await this.forwardUpstream(req);
 
     const diff = process.hrtime(startTime);
@@ -170,7 +171,6 @@ export class ProxyService {
         data: req.body,
         timeout: org.upstreamTimeoutMs,
         responseType: 'stream',
-        // Accept any status so we can forward 4xx/5xx faithfully instead of throwing.
         validateStatus: () => true,
         maxRedirects: 0,
       });

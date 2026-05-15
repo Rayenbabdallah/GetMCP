@@ -7,11 +7,12 @@ import { OrgModule } from './orgs/org.module';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { AgentModule } from './agents/agent.module';
+import { PolicyModule } from './policy/policy.module';
 import { HealthController } from './health.controller';
 import { RequestIdMiddleware } from './request-id.middleware';
 
 @Module({
-  imports: [AuthModule, AuditModule, AgentModule, GeneratorModule, ProxyModule, OrgModule],
+  imports: [AuthModule, AuditModule, AgentModule, PolicyModule, GeneratorModule, ProxyModule, OrgModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
