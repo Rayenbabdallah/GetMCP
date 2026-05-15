@@ -1,6 +1,25 @@
-# GetMCP Beta Deployment Guide
+<div align="center">
+  <img src="apps/web/public/getmcp-icon.png" alt="GetMCP" width="96" height="96" />
+  <h1>GetMCP</h1>
+  <p><strong>Zero Trust for AI agents.</strong> Generates the MCP servers your customers' agents need, then enforces who can do what — per request, per agent, per tenant.</p>
+  <p>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0" /></a>
+    <img src="https://img.shields.io/badge/tests-128%20passing-brightgreen.svg" alt="Tests" />
+    <img src="https://img.shields.io/badge/coverage-per--file%20gates-success.svg" alt="Coverage" />
+    <img src="https://img.shields.io/badge/node-%3E%3D20-success.svg" alt="Node 20+" />
+    <a href="https://github.com/Rayenbabdallah/GetMCP/issues"><img src="https://img.shields.io/github/issues/Rayenbabdallah/GetMCP" alt="Issues" /></a>
+  </p>
+  <p>
+    <a href="docs/quickstart.md"><strong>Quickstart →</strong></a> ·
+    <a href="docs/security.md">Threat model</a> ·
+    <a href="docs/operations.md">Operations</a> ·
+    <a href="CHANGELOG.md">Changelog</a>
+  </p>
+</div>
 
-Welcome to the GetMCP Beta. This guide outlines how to deploy the GetMCP Enterprise Control Plane to your infrastructure.
+---
+
+> **TL;DR.** Point GetMCP at any OpenAPI spec. It generates two runnable MCP servers (Internal "god mode" and External "customer-safe"), then runs in front of them as a policy proxy with a tamper-evident audit log. Self-hosted, Apache 2.0, no telemetry.
 
 ## Prerequisites
 - Docker & Docker Compose
@@ -246,4 +265,14 @@ Schema, hash construction, and integrity guarantees are documented in `docs/audi
 
 ## Roadmap
 
-See `CHECKLIST.md` for the open execution list. Slack approval is still a stub log line — that's next.
+See [`CHECKLIST.md`](CHECKLIST.md) for the open, ranked execution list and [`CHANGELOG.md`](CHANGELOG.md) for what shipped in `v0.1.0`.
+
+## Contributing
+
+PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev loop, coverage policy, and what kinds of changes we're looking for. Discussion before code on anything touching auth, the audit chain, or migrations. Be a good neighbour: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+For security issues, **do not file public issues** — see [`SECURITY.md`](SECURITY.md) for the disclosure SLA.
+
+## License
+
+GetMCP is licensed under the [Apache License 2.0](LICENSE). © 2026 Rayen Babdallah and GetMCP contributors. See [`NOTICE`](NOTICE).

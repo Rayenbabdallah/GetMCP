@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a new capability or change.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check if the work is already in [`CHECKLIST.md`](https://github.com/Rayenbabdallah/GetMCP/blob/main/CHECKLIST.md). If you want to discuss the design first, prefer a [Discussion](https://github.com/Rayenbabdallah/GetMCP/discussions).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today, or what's painful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Concrete API / UI / config sketch. Doesn't need to be final.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you try or think about, and why doesn't it work?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is a contained change, not a new product surface.
+        - label: I'm willing to send the PR myself.

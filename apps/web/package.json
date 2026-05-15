@@ -1,7 +1,11 @@
 {
   "name": "web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "GetMCP control-plane dashboard + landing + docs",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Rayenbabdallah/GetMCP",
+  "repository": { "type": "git", "url": "https://github.com/Rayenbabdallah/GetMCP.git", "directory": "apps/web" },
   "type": "module",
   "scripts": {
     "dev": "vite",

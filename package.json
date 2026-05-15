@@ -1,6 +1,12 @@
 {
   "name": "getmcp-monorepo",
-  "version": "1.0.0",
+  "version": "0.1.0",
+  "description": "GetMCP — Zero Trust for AI agents. Generates and protects MCP servers.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Rayenbabdallah/GetMCP",
+  "repository": { "type": "git", "url": "https://github.com/Rayenbabdallah/GetMCP.git" },
+  "bugs": { "url": "https://github.com/Rayenbabdallah/GetMCP/issues" },
+  "keywords": ["mcp", "model-context-protocol", "ai-agents", "zero-trust", "api-gateway", "audit-log", "self-hosted"],
   "private": true,
   "engines": {
     "node": ">=20.0.0",

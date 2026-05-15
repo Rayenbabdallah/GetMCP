@@ -1,0 +1,13 @@
+# Default — all PRs route to the maintainer.
+*       @Rayenbabdallah
+
+# Audit chain is the trust mechanism. Any change here gets extra scrutiny.
+/apps/api/src/audit/        @Rayenbabdallah
+/apps/api/src/auth/         @Rayenbabdallah
+
+# Migrations are immutable once merged. Don't edit; add a new one.
+/apps/api/prisma/migrations/  @Rayenbabdallah
+
+# Security policy + threat model.
+SECURITY.md                 @Rayenbabdallah
+docs/security.md            @Rayenbabdallah

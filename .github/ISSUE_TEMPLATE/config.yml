@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Rayenbabdallah/GetMCP/blob/main/SECURITY.md
+    about: Do NOT file a public issue. Email rayenbenabdallah88@gmail.com per the disclosure policy.
+  - name: Question or design discussion
+    url: https://github.com/Rayenbabdallah/GetMCP/discussions
+    about: For "how do I…", "what about…", architecture conversations, and anything that isn't a clear bug or feature.

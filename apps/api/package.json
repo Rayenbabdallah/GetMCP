@@ -1,10 +1,12 @@
 {
   "name": "api",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "version": "0.1.0",
+  "description": "GetMCP API — Zero Trust proxy + audit ledger for AI agents",
+  "author": "Rayen Babdallah",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/Rayenbabdallah/GetMCP",
+  "repository": { "type": "git", "url": "https://github.com/Rayenbabdallah/GetMCP.git", "directory": "apps/api" },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
