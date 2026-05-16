@@ -21,6 +21,47 @@
 
 > **TL;DR.** Point GetMCP at any OpenAPI spec. It generates two runnable MCP servers (Internal "god mode" and External "customer-safe"), then runs in front of them as a policy proxy with a tamper-evident audit log. Self-hosted, Apache 2.0, no telemetry.
 
+<p align="center">
+  <img src="docs/images/landing-hero.png" alt="GetMCP — Make your API agent-ready, safely. Zero Trust Architecture for AI Agents." width="900" />
+</p>
+
+## What is GetMCP?
+
+A **policy proxy + audit log** that sits between AI agents (Claude, ChatGPT, Cursor, your bots) and your existing API.
+
+It does two things:
+
+1. **Generates** Internal + External MCP servers from any OpenAPI spec, so your customers' AI agents can safely call your API.
+2. **Enforces** Zero Trust on every call — per-agent identity, 5 policy rule types, Slack-mediated approval for sensitive mutations, and a tamper-evident audit log you can verify with one HTTP request.
+
+```
+   ┌─────────┐     ┌──────────────────────────────┐     ┌──────────┐
+   │  AI     │ ──► │ GetMCP — auth · policy ·     │ ──► │ Your API │
+   │  agent  │     │ approval · audit · stream    │     │          │
+   └─────────┘     └──────────────────────────────┘     └──────────┘
+```
+
+**Built for**: B2B SaaS companies whose customers are starting to wire AI agents into their APIs and need a Zero Trust layer they can self-host.
+
+**Not built for**: routing internal traffic between microservices (use a service mesh) or rate-limiting public APIs (use a CDN / WAF). GetMCP is specifically the AI-agent → enterprise-API path.
+
+## Why not roll your own?
+
+| You'd need to build | What GetMCP gives you on day 1 |
+|---|---|
+| Auth + per-tenant isolation, with regression tests proving Org A can't read Org B | Apache-2.0, working, tested |
+| A streaming proxy with header filtering (no leaking caller `Authorization` to the upstream) | Real, with `502` / `504` mapped correctly, never `500` |
+| A policy engine with deterministic priority order and a dry-run endpoint | 5 rule types, property-tested, `POST /policies/simulate` |
+| A tamper-evident audit log your auditors will accept | sha256 hash chain, one-call `GET /audit/verify`, NDJSON export |
+| A Slack approval flow with HMAC-signed callbacks | Idempotent state machine, replay-on-approve through the proxy |
+| All of the above as a Helm chart with rolling deploys | Bundled, pre-install migration hook, no bundled DB |
+
+About 6 months of work for one engineer. GetMCP is one bash command:
+
+```bash
+./deploy/scripts/bootstrap.sh
+```
+
 ## Prerequisites
 - Docker & Docker Compose
 - Node.js 20+ (for local development) — see `.nvmrc`
