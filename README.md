@@ -306,6 +306,15 @@ Schema, hash construction, and integrity guarantees are documented in `docs/audi
 
 ## Roadmap
 
+Tracked publicly as design-discussion issues — comment if you have a take, PRs welcome:
+
+- [Approval ergonomics — mitigate rubber-stamp risk](https://github.com/Rayenbabdallah/GetMCP/issues/1)
+- [BEHAVIORAL_ANOMALY rule type — close the right-shape-wrong-volume gap](https://github.com/Rayenbabdallah/GetMCP/issues/2)
+- [Policy lifecycle — versioning, drift detection, audit-of-audit](https://github.com/Rayenbabdallah/GetMCP/issues/3)
+- [Signed agent configs — sigstore-style provenance for generator output](https://github.com/Rayenbabdallah/GetMCP/issues/4)
+
+
+
 See [`CHANGELOG.md`](CHANGELOG.md) for what shipped in `v0.1.0`. Roadmap is tracked in [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues) and [Discussions](https://github.com/Rayenbabdallah/GetMCP/discussions).
 
 ## Contributing
