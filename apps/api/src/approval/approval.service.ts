@@ -31,7 +31,15 @@ export interface DecisionInput {
   pendingId: string;
   approverSlackUserId: string;
   approverSlackUserName: string;
+  /** Required when the originating rule has actionConfig.requireJustification === true. */
+  justification?: string;
 }
+
+export type ApprovalAttemptResult =
+  | { kind: 'pending_quorum'; have: number; need: number }
+  | { kind: 'already_voted'; have: number; need: number }
+  | { kind: 'rejected_missing_justification' }
+  | { kind: 'decided'; pending: any };
 
 @Injectable()
 export class ApprovalService {
@@ -101,6 +109,72 @@ export class ApprovalService {
 
     this.metrics?.recordApproval('created');
     return pending;
+  }
+
+  // Records a vote and, if quorum is reached, runs the full replay flow.
+  // Returns one of:
+  //   - { kind: 'rejected_missing_justification' } — rule requires justification, none provided
+  //   - { kind: 'already_voted', ... }              — this user already voted on this pending
+  //   - { kind: 'pending_quorum', have, need }      — vote recorded, more votes needed
+  //   - { kind: 'decided', pending }                — quorum reached, request replayed and decided
+  async approveWithQuorum(input: DecisionInput): Promise<ApprovalAttemptResult> {
+    // Fetch the originating rule to learn quorum + justification policy.
+    const rule = await this.lookupRuleForPending(input.pendingId);
+    const cfg = (rule?.actionConfig as any) ?? {};
+    const requireJustification = Boolean(cfg.requireJustification);
+    const quorumRequired = Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0
+      ? cfg.quorumRequired : 1;
+
+    if (requireJustification && !input.justification?.trim()) {
+      return { kind: 'rejected_missing_justification' };
+    }
+
+    // Record this vote. Unique constraint on (pendingId, approverSlackUserId) makes
+    // a second click from the same approver a graceful no-op.
+    try {
+      await this.prisma.pendingRequestApproval.create({
+        data: {
+          pendingRequestId: input.pendingId,
+          approverSlackUserId: input.approverSlackUserId,
+          approverSlackUserName: input.approverSlackUserName,
+          justification: input.justification?.trim() || null,
+          decision: 'APPROVED',
+        },
+      });
+    } catch (err: any) {
+      // P2002 = unique constraint violation — this approver already voted.
+      if (err?.code === 'P2002') {
+        const have = await this.prisma.pendingRequestApproval.count({
+          where: { pendingRequestId: input.pendingId, decision: 'APPROVED' },
+        });
+        return { kind: 'already_voted', have, need: quorumRequired };
+      }
+      throw err;
+    }
+
+    const have = await this.prisma.pendingRequestApproval.count({
+      where: { pendingRequestId: input.pendingId, decision: 'APPROVED' },
+    });
+    if (have < quorumRequired) {
+      return { kind: 'pending_quorum', have, need: quorumRequired };
+    }
+
+    // Quorum reached. Run the existing replay flow.
+    const pending = await this.approve(input);
+    return { kind: 'decided', pending };
+  }
+
+  // Internal: looks up the PolicyRule that triggered the given pending request.
+  // Returns null if the rule was deleted between the hold and the decision.
+  private async lookupRuleForPending(pendingId: string) {
+    const pending = await this.prisma.pendingRequest.findUnique({
+      where: { id: pendingId },
+      select: { ruleId: true, organizationId: true },
+    });
+    if (!pending) return null;
+    return this.prisma.policyRule.findFirst({
+      where: { id: pending.ruleId, organizationId: pending.organizationId },
+    });
   }
 
   async approve(input: DecisionInput) {

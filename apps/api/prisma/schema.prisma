@@ -104,9 +104,29 @@ model PendingRequest {
   expiresAt             DateTime
 
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approvals             PendingRequestApproval[]
 
   @@index([organizationId, status])
   @@index([expiresAt])
+}
+
+// One row per approver vote on a pending request. Enables quorum (N-of-M approvers
+// required before the held request replays) and captures per-vote justification text
+// for the audit trail.
+model PendingRequestApproval {
+  id                    String         @id @default(cuid())
+  pendingRequestId      String
+  approverSlackUserId   String
+  approverSlackUserName String
+  justification         String?
+  decision              String         // "APPROVED" | "DENIED"
+  decidedAt             DateTime       @default(now())
+
+  pendingRequest        PendingRequest @relation(fields: [pendingRequestId], references: [id], onDelete: Cascade)
+
+  // One approver gets one vote per pending request — second click is a no-op.
+  @@unique([pendingRequestId, approverSlackUserId])
+  @@index([pendingRequestId])
 }
 
 // API keys for authenticating callers as a specific Organization.

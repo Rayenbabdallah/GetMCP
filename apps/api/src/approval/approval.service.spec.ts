@@ -4,8 +4,38 @@ import { ApprovalService } from './approval.service';
 function fakePrisma() {
   const orgs: any = { 'org-A': { slackBotToken: null } };
   const pendings: any[] = [];
+  const approvalVotes: any[] = [];
+  const rules: any[] = [];
   let nextId = 1;
+  let nextVoteId = 1;
   const prisma: any = {
+    pendingRequestApproval: {
+      create: async ({ data }: any) => {
+        const exists = approvalVotes.some(
+          (v) =>
+            v.pendingRequestId === data.pendingRequestId &&
+            v.approverSlackUserId === data.approverSlackUserId,
+        );
+        if (exists) {
+          const e: any = new Error('Unique constraint violation');
+          e.code = 'P2002';
+          throw e;
+        }
+        const row = { id: `vote-${nextVoteId++}`, decidedAt: new Date(), ...data };
+        approvalVotes.push(row);
+        return row;
+      },
+      count: async ({ where }: any) =>
+        approvalVotes.filter(
+          (v) =>
+            v.pendingRequestId === where.pendingRequestId &&
+            (where.decision === undefined || v.decision === where.decision),
+        ).length,
+    },
+    policyRule: {
+      findFirst: async ({ where }: any) =>
+        rules.find((r) => r.id === where.id && r.organizationId === where.organizationId) ?? null,
+    },
     pendingRequest: {
       create: async ({ data }: any) => {
         const row = {
@@ -44,7 +74,7 @@ function fakePrisma() {
       findUnique: async ({ where }: any) => orgs[where.id] ?? null,
     },
   };
-  return { prisma, pendings, orgs };
+  return { prisma, pendings, orgs, approvalVotes, rules };
 }
 
 function fakeProxy(returnValue: any) {
@@ -222,5 +252,105 @@ describe('ApprovalService — state machine', () => {
     const n = await svc.sweepExpired();
     expect(n).toBe(2);
     expect(pendings.every((p: any) => p.status === 'EXPIRED')).toBe(true);
+  });
+});
+
+describe('ApprovalService.approveWithQuorum — quorum + justification', () => {
+  function setup(ruleConfig: { requireJustification?: boolean; quorumRequired?: number }) {
+    const fakes = fakePrisma();
+    const proxy = fakeProxy({
+      kind: 'proxied',
+      status: 200,
+      headers: {},
+      stream: (async function* () { yield Buffer.from('{"ok":true}'); })(),
+    });
+    const svc = new ApprovalService(fakes.prisma, proxy as any, fakeAudit as any, fakeSlack as any);
+    return { ...fakes, svc, proxy };
+  }
+
+  async function createPending(svc: ApprovalService, rules: any[]) {
+    const rule = { id: `rule-${rules.length + 1}`, organizationId: 'org-A', actionConfig: {} };
+    rules.push(rule);
+    await svc.createPending({
+      organizationId: 'org-A',
+      agentId: 'agent-1',
+      agentName: 'agent-1',
+      apiKeyId: 'k1',
+      method: 'POST',
+      path: '/v1/refunds',
+      source: 'external_mcp',
+      ruleId: rule.id,
+      ruleName: 'refund-approval',
+      channel: '#ops',
+    });
+    return rule;
+  }
+
+  it('quorumRequired: 2 — first Approve records vote without replay, second triggers replay', async () => {
+    const { svc, pendings, rules, proxy } = setup({});
+    const rule = await createPending(svc, rules);
+    rule.actionConfig = { quorumRequired: 2 };
+
+    const r1 = await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U1', approverSlackUserName: 'alice',
+    });
+    expect(r1).toEqual({ kind: 'pending_quorum', have: 1, need: 2 });
+    expect(proxy.interceptAndExecute).not.toHaveBeenCalled();
+    expect(pendings[0].status).toBe('PENDING');
+
+    const r2 = await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U2', approverSlackUserName: 'bob',
+    });
+    expect(r2.kind).toBe('decided');
+    expect(proxy.interceptAndExecute).toHaveBeenCalledTimes(1);
+    expect(pendings[0].status).toBe('APPROVED');
+  });
+
+  it('requireJustification: true with empty justification — rejected, no vote recorded', async () => {
+    const { svc, pendings, rules, approvalVotes, proxy } = setup({});
+    const rule = await createPending(svc, rules);
+    rule.actionConfig = { requireJustification: true };
+
+    const r = await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U1', approverSlackUserName: 'alice',
+      justification: '   ',
+    });
+    expect(r).toEqual({ kind: 'rejected_missing_justification' });
+    expect(approvalVotes).toHaveLength(0);
+    expect(proxy.interceptAndExecute).not.toHaveBeenCalled();
+    expect(pendings[0].status).toBe('PENDING');
+
+    // Same approver retrying with real justification succeeds.
+    const r2 = await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U1', approverSlackUserName: 'alice',
+      justification: 'customer asked, ticket CS-321',
+    });
+    expect(r2.kind).toBe('decided');
+    expect(approvalVotes[0].justification).toBe('customer asked, ticket CS-321');
+  });
+
+  it('one approver cannot double-vote — second click returns already_voted', async () => {
+    const { svc, pendings, rules, approvalVotes, proxy } = setup({});
+    const rule = await createPending(svc, rules);
+    rule.actionConfig = { quorumRequired: 2 };
+
+    await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U1', approverSlackUserName: 'alice',
+    });
+    expect(approvalVotes).toHaveLength(1);
+
+    const r = await svc.approveWithQuorum({
+      pendingId: pendings[0].id,
+      approverSlackUserId: 'U1', approverSlackUserName: 'alice',
+    });
+    expect(r).toEqual({ kind: 'already_voted', have: 1, need: 2 });
+    expect(approvalVotes).toHaveLength(1);   // no new row
+    expect(proxy.interceptAndExecute).not.toHaveBeenCalled();
+    expect(pendings[0].status).toBe('PENDING');
   });
 });
