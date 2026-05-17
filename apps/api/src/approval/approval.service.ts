@@ -83,6 +83,11 @@ export class ApprovalService {
       });
       if (org?.slackBotToken) {
         const token = decryptSecret(org.slackBotToken);
+        const rule = await this.prisma.policyRule.findFirst({
+          where: { id: input.ruleId, organizationId: input.organizationId },
+          select: { actionConfig: true },
+        });
+        const cfg = (rule?.actionConfig as any) ?? {};
         const ref = await this.slack.postApprovalMessage(token, input.channel, {
           pendingId: pending.id,
           agentName: input.agentName,
@@ -93,6 +98,9 @@ export class ApprovalService {
           reasoning: input.reasoning ?? null,
           ruleName: input.ruleName,
           expiresAt: pending.expiresAt,
+          requireJustification: Boolean(cfg.requireJustification),
+          quorumRequired: Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0 ? cfg.quorumRequired : 1,
+          quorumHave: 0,
         });
         await this.prisma.pendingRequest.update({
           where: { id: pending.id },

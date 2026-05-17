@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { decryptSecret } from '../crypto.util';
 import { verifySlackSignature } from './slack.signature';
 import { ApprovalService } from '../approval/approval.service';
+import { SlackService } from './slack.service';
 
 @Controller('slack')
 @Public()
@@ -14,6 +15,7 @@ export class SlackController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly approvals: ApprovalService,
+    private readonly slack: SlackService,
   ) {}
 
   // Slack POSTs application/x-www-form-urlencoded with a single field `payload`
@@ -28,10 +30,6 @@ export class SlackController {
     const timestamp = req.headers['x-slack-request-timestamp'] as string | undefined;
     const signature = req.headers['x-slack-signature'] as string | undefined;
 
-    // Decode payload first to learn which org this belongs to (we need the org
-    // to know which signing secret to verify against). We do NOT trust anything
-    // out of the payload until after verification — we only use it to look up
-    // the secret.
     const params = new URLSearchParams(rawBody);
     const payloadStr = params.get('payload');
     if (!payloadStr) throw new BadRequestException('missing payload');
@@ -52,7 +50,7 @@ export class SlackController {
 
     const pending = await this.prisma.pendingRequest.findUnique({
       where: { id: pendingId },
-      select: { organizationId: true, status: true },
+      select: { organizationId: true, status: true, channel: true },
     });
     if (!pending) {
       this.logger.warn(`Slack interaction for unknown pending ${pendingId}`);
@@ -61,7 +59,7 @@ export class SlackController {
 
     const org = await this.prisma.organization.findUnique({
       where: { id: pending.organizationId },
-      select: { slackSigningSecret: true },
+      select: { slackSigningSecret: true, slackBotToken: true },
     });
     if (!org?.slackSigningSecret) {
       this.logger.error(`Org ${pending.organizationId} has no slackSigningSecret; cannot verify`);
@@ -74,18 +72,46 @@ export class SlackController {
     }
 
     const actionId: string = action.action_id;
-    const actor = {
-      pendingId,
-      approverSlackUserId: payload.user?.id ?? 'unknown',
-      approverSlackUserName: payload.user?.username ?? payload.user?.name ?? 'unknown',
-    };
+    const userId: string = payload.user?.id ?? 'unknown';
+    const userName: string = payload.user?.username ?? payload.user?.name ?? 'unknown';
+    const channel = pending.channel ?? payload.channel?.id ?? '';
+
+    // Justification comes from the plain_text_input block on the card (added in v0.2 Day 2).
+    // Slack puts it under payload.state.values[block_id][action_id].value.
+    const justification: string | undefined =
+      payload?.state?.values?.['getmcp_justification_block']?.['getmcp_justification']?.value;
+
+    const botToken = org.slackBotToken ? decryptSecret(org.slackBotToken) : null;
 
     if (actionId === 'getmcp_approve') {
-      const result = await this.approvals.approve(actor);
-      return res.status(200).json({ ok: true, decision: result?.status ?? 'NOOP' });
+      const result = await this.approvals.approveWithQuorum({
+        pendingId,
+        approverSlackUserId: userId,
+        approverSlackUserName: userName,
+        justification,
+      });
+      // Respond ephemerally on rejection paths so the approver sees what went wrong.
+      // Slack ignores 200-with-body responses for block_actions, so we post an
+      // explicit chat.postEphemeral instead.
+      if (botToken && channel) {
+        if (result.kind === 'rejected_missing_justification') {
+          await this.slack.postEphemeral(botToken, channel, userId,
+            ':warning: This rule requires a justification. Type a one-line reason in the field before clicking Approve.');
+        } else if (result.kind === 'already_voted') {
+          await this.slack.postEphemeral(botToken, channel, userId,
+            `:white_check_mark: Your vote was already recorded (${result.have} of ${result.need} approvers).`);
+        } else if (result.kind === 'pending_quorum') {
+          await this.slack.postEphemeral(botToken, channel, userId,
+            `:hourglass: Vote recorded (${result.have} of ${result.need} approvers). Waiting for the rest.`);
+        }
+      }
+      return res.status(200).json({ ok: true, kind: result.kind });
     }
     if (actionId === 'getmcp_deny') {
-      const result = await this.approvals.deny(actor);
+      const result = await this.approvals.deny(
+        { pendingId, approverSlackUserId: userId, approverSlackUserName: userName },
+        justification,
+      );
       return res.status(200).json({ ok: true, decision: result?.status ?? 'NOOP' });
     }
 

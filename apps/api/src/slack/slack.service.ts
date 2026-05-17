@@ -16,6 +16,12 @@ export interface ApprovalMessageInput {
   reasoning: string | null;
   ruleName: string;
   expiresAt: Date;
+  // Drives the card's UX: render the justification input if required, show
+  // quorum progress when N > 1. Defaults: false / 1 (single approver, no
+  // justification) for backwards compatibility.
+  requireJustification?: boolean;
+  quorumRequired?: number;
+  quorumHave?: number;
 }
 
 @Injectable()
@@ -84,7 +90,11 @@ export class SlackService {
 
   buildApprovalBlocks(i: ApprovalMessageInput) {
     const ttlSec = Math.max(0, Math.floor((i.expiresAt.getTime() - Date.now()) / 1000));
-    return [
+    const quorum = Math.max(1, i.quorumRequired ?? 1);
+    const have = Math.max(0, i.quorumHave ?? 0);
+    const requireJustification = Boolean(i.requireJustification);
+
+    const blocks: any[] = [
       {
         type: 'header',
         text: { type: 'plain_text', text: `:lock: Approval needed — ${i.method} ${i.path}` },
@@ -102,26 +112,85 @@ export class SlackService {
         type: 'section',
         text: { type: 'mrkdwn', text: `*Reasoning*\n${i.reasoning || '_(none provided)_'}` },
       },
-      {
-        type: 'actions',
+    ];
+
+    // Quorum progress, only when N > 1 — otherwise it's noise.
+    if (quorum > 1) {
+      blocks.push({
+        type: 'context',
         elements: [
           {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Approve' },
-            style: 'primary',
-            value: i.pendingId,
-            action_id: 'getmcp_approve',
-          },
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Deny' },
-            style: 'danger',
-            value: i.pendingId,
-            action_id: 'getmcp_deny',
+            type: 'mrkdwn',
+            text: `:busts_in_silhouette: *Quorum:* ${have} of ${quorum} approvers`,
           },
         ],
-      },
-    ];
+      });
+    }
+
+    // Justification input — always visible when required, optional otherwise.
+    // We render it as optional (no `*` from Slack) but the backend enforces it
+    // and returns an ephemeral error if missing when the rule requires it.
+    if (requireJustification) {
+      blocks.push({
+        type: 'input',
+        block_id: 'getmcp_justification_block',
+        label: { type: 'plain_text', text: 'Justification (required)' },
+        element: {
+          type: 'plain_text_input',
+          action_id: 'getmcp_justification',
+          placeholder: { type: 'plain_text', text: 'Why are you approving this?' },
+          max_length: 500,
+        },
+        optional: false,
+      });
+    }
+
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Approve' },
+          style: 'primary',
+          value: i.pendingId,
+          action_id: 'getmcp_approve',
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'Deny' },
+          style: 'danger',
+          value: i.pendingId,
+          action_id: 'getmcp_deny',
+        },
+      ],
+    });
+
+    return blocks;
+  }
+
+  // Posts a private "only-you-can-see-this" message back to the approver — used
+  // when their click is rejected (missing justification, already voted, etc.).
+  async postEphemeral(
+    botToken: string,
+    channel: string,
+    userId: string,
+    text: string,
+  ): Promise<void> {
+    try {
+      await axios.post(
+        'https://slack.com/api/chat.postEphemeral',
+        { channel, user: userId, text },
+        {
+          headers: {
+            Authorization: `Bearer ${botToken}`,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+          timeout: 5000,
+        },
+      );
+    } catch (err: any) {
+      this.logger.warn(`postEphemeral failed: ${err.message}`);
+    }
   }
 
   buildDecidedBlocks(i: ApprovalMessageInput, decision: string, actor?: string) {
