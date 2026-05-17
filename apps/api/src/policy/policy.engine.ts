@@ -7,7 +7,8 @@ export type RuleType =
   | 'BLOCK'
   | 'AUDIT'
   | 'RATE_LIMIT'
-  | 'MUTATION_APPROVAL';
+  | 'MUTATION_APPROVAL'
+  | 'BEHAVIORAL_ANOMALY';
 
 export interface PolicyRuleLite {
   id: string;
@@ -32,6 +33,13 @@ export interface EvalContext {
   // True when replaying a request that has already received human approval —
   // MUTATION_APPROVAL rules are skipped, all other rules still apply.
   bypassApproval?: boolean;
+  // Precomputed by PolicyService.evaluate before the engine runs. The engine
+  // stays pure-sync; the I/O (fetching baseline + counting recent calls) is
+  // done by the service. `null` means the baseline didn't have enough samples
+  // to score this request — BEHAVIORAL_ANOMALY rules bypass with a warning.
+  anomalyScore?: number | null;
+  anomalyReason?: string | null;
+  anomalyBaselineSampleCount?: number;
 }
 
 // Each step taken during evaluation, useful for the dry-run endpoint.
@@ -69,9 +77,10 @@ export type Decision =
       trace: EvaluationTrace[];
     };
 
-// MUTATION_APPROVAL and RATE_LIMIT only apply to external agents — internal
-// is god-mode by design. BLOCK / ALLOWLIST / AUDIT apply universally.
-const EXTERNAL_ONLY: ReadonlySet<string> = new Set(['MUTATION_APPROVAL', 'RATE_LIMIT']);
+// MUTATION_APPROVAL, RATE_LIMIT, BEHAVIORAL_ANOMALY only apply to external
+// agents — internal is god-mode by design. BLOCK / ALLOWLIST / AUDIT apply
+// universally.
+const EXTERNAL_ONLY: ReadonlySet<string> = new Set(['MUTATION_APPROVAL', 'RATE_LIMIT', 'BEHAVIORAL_ANOMALY']);
 
 export function sortRules(rules: PolicyRuleLite[]): PolicyRuleLite[] {
   return [...rules].sort((a, b) => {
@@ -249,6 +258,88 @@ export function evaluate(
           detail: `consumed 1 token (${limit}/${windowMs}ms)`,
         });
         continue;
+      }
+      case 'BEHAVIORAL_ANOMALY': {
+        const cfg = rule.actionConfig ?? {};
+        const sensitivity = typeof cfg.sensitivity === 'number' ? cfg.sensitivity : 0.95;
+        const minSamples = Number.isInteger(cfg.minBaselineSamples) ? cfg.minBaselineSamples : 50;
+        const onAnomaly = typeof cfg.onAnomaly === 'string' ? cfg.onAnomaly : 'audit_only';
+
+        // PolicyService precomputes anomalyScore + sampleCount. If samples are
+        // insufficient we bypass with a warning — new agents must accumulate
+        // baseline traffic before they get scored. Setting onAnomaly:'audit_only'
+        // is the recommended starting position; switch to 'block' after a week.
+        const sampleCount = ctx.anomalyBaselineSampleCount ?? 0;
+        if (sampleCount < minSamples) {
+          trace.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleType: rule.ruleType,
+            matched: true,
+            outcome: 'skipped',
+            detail: `insufficient baseline (${sampleCount}/${minSamples} samples) — observing only`,
+          });
+          continue;
+        }
+
+        const score = ctx.anomalyScore ?? 0;
+        if (score < sensitivity) {
+          trace.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleType: rule.ruleType,
+            matched: true,
+            outcome: 'matched_audit_ok',
+            detail: `score ${score.toFixed(2)} < threshold ${sensitivity} — within baseline`,
+          });
+          continue;
+        }
+
+        // Anomaly! Action depends on rule config.
+        if (onAnomaly === 'audit_only') {
+          trace.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleType: rule.ruleType,
+            matched: true,
+            outcome: 'matched_audit_ok',
+            detail: `ANOMALY score ${score.toFixed(2)} ≥ ${sensitivity} — audit_only mode, allowing through`,
+          });
+          continue;
+        }
+        if (onAnomaly === 'approval') {
+          const channel = typeof cfg.approverChannel === 'string' ? cfg.approverChannel : '#sec-ops';
+          trace.push({
+            ruleId: rule.id,
+            ruleName: rule.name,
+            ruleType: rule.ruleType,
+            matched: true,
+            outcome: 'matched_awaiting_approval',
+            detail: `ANOMALY score ${score.toFixed(2)} ≥ ${sensitivity} — escalating to ${channel}`,
+          });
+          return {
+            kind: 'awaiting_approval',
+            rule,
+            reason: `Behavioural anomaly (score ${score.toFixed(2)}): ${ctx.anomalyReason ?? 'no detail'}`,
+            channel,
+            trace,
+          };
+        }
+        // 'block' (default for any other value)
+        trace.push({
+          ruleId: rule.id,
+          ruleName: rule.name,
+          ruleType: rule.ruleType,
+          matched: true,
+          outcome: 'matched_block',
+          detail: `ANOMALY score ${score.toFixed(2)} ≥ ${sensitivity}`,
+        });
+        return {
+          kind: 'block',
+          rule,
+          reason: `Behavioural anomaly (score ${score.toFixed(2)}): ${ctx.anomalyReason ?? 'no detail'}`,
+          trace,
+        };
       }
       default:
         trace.push({

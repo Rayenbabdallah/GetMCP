@@ -172,3 +172,81 @@ describe('rule interactions', () => {
     expect(d.trace[0].matched).toBe(false);
   });
 });
+
+describe('BEHAVIORAL_ANOMALY rule type', () => {
+  let rl: RateLimiter;
+  beforeEach(() => { rl = new RateLimiter(); });
+
+  function anomalyRule(over: Partial<PolicyRuleLite> = {}): PolicyRuleLite {
+    return rule({
+      ruleType: 'BEHAVIORAL_ANOMALY',
+      targetMethod: '*',
+      targetPath: '*',
+      priority: 40,
+      actionConfig: { sensitivity: 0.9, minBaselineSamples: 50, onAnomaly: 'block', baselineWindowDays: 7 },
+      ...over,
+    });
+  }
+
+  it('bypasses when baseline sample count is below minBaselineSamples', () => {
+    const d = evaluate(
+      [anomalyRule()],
+      { ...ctx, anomalyScore: 0.99, anomalyBaselineSampleCount: 10, anomalyReason: 'new agent' },
+      rl,
+    );
+    expect(d.kind).toBe('allow');
+    expect(d.trace[0].detail).toMatch(/insufficient baseline/);
+  });
+
+  it('allows when score is below sensitivity threshold', () => {
+    const d = evaluate(
+      [anomalyRule()],
+      { ...ctx, anomalyScore: 0.5, anomalyBaselineSampleCount: 200 },
+      rl,
+    );
+    expect(d.kind).toBe('allow');
+    expect(d.trace[0].detail).toMatch(/within baseline/);
+  });
+
+  it('blocks when score >= sensitivity and onAnomaly: block', () => {
+    const d = evaluate(
+      [anomalyRule({ actionConfig: { sensitivity: 0.9, minBaselineSamples: 50, onAnomaly: 'block', baselineWindowDays: 7 } })],
+      { ...ctx, anomalyScore: 0.97, anomalyBaselineSampleCount: 200, anomalyReason: 'never seen DELETE /admin/users' },
+      rl,
+    );
+    expect(d.kind).toBe('block');
+    if (d.kind !== 'block') return;
+    expect(d.reason).toMatch(/Behavioural anomaly.*never seen/);
+  });
+
+  it('audit_only mode logs but does not block', () => {
+    const d = evaluate(
+      [anomalyRule({ actionConfig: { sensitivity: 0.9, minBaselineSamples: 50, onAnomaly: 'audit_only', baselineWindowDays: 7 } })],
+      { ...ctx, anomalyScore: 0.97, anomalyBaselineSampleCount: 200 },
+      rl,
+    );
+    expect(d.kind).toBe('allow');
+    expect(d.trace[0].detail).toMatch(/audit_only/);
+  });
+
+  it('approval mode escalates to awaiting_approval with the channel from config', () => {
+    const d = evaluate(
+      [anomalyRule({ actionConfig: { sensitivity: 0.9, minBaselineSamples: 50, onAnomaly: 'approval', baselineWindowDays: 7, approverChannel: '#sec-ops' } })],
+      { ...ctx, anomalyScore: 0.97, anomalyBaselineSampleCount: 200, anomalyReason: 'volume spike' },
+      rl,
+    );
+    expect(d.kind).toBe('awaiting_approval');
+    if (d.kind !== 'awaiting_approval') return;
+    expect(d.channel).toBe('#sec-ops');
+  });
+
+  it('skips for internal_mcp source (external_mcp only)', () => {
+    const d = evaluate(
+      [anomalyRule()],
+      { ...ctx, source: 'internal_mcp', anomalyScore: 0.99, anomalyBaselineSampleCount: 200 },
+      rl,
+    );
+    expect(d.kind).toBe('allow');
+    expect(d.trace[0].outcome).toBe('not_applicable_to_source');
+  });
+});
