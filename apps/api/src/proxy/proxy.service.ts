@@ -27,6 +27,8 @@ export interface PolicyOutcome {
   status: 'BLOCKED' | 'AWAITING_APPROVAL';
   reason: string;
   decision: Decision;
+  /** Set when a BEHAVIORAL_ANOMALY rule was active for this request. */
+  anomalyScore?: number | null;
 }
 
 export interface ProxiedResponse {
@@ -34,6 +36,8 @@ export interface ProxiedResponse {
   status: number;
   headers: Record<string, string>;
   stream: Readable;
+  /** Set when a BEHAVIORAL_ANOMALY rule was active for this request. */
+  anomalyScore?: number | null;
 }
 
 export type ProxyOutcome = PolicyOutcome | ProxiedResponse;
@@ -103,7 +107,12 @@ export class ProxyService {
     if (decision.kind === 'block') {
       this.logger.warn(`Blocked by Rule [${decision.rule.name}]: ${decision.reason}`);
       throw new HttpException(
-        { allowed: false, status: 'BLOCKED', reason: decision.reason },
+        {
+          allowed: false,
+          status: 'BLOCKED',
+          reason: decision.reason,
+          anomalyScore: (decision as any).anomalyScore ?? null,
+        },
         HttpStatus.FORBIDDEN,
       );
     }
@@ -117,6 +126,7 @@ export class ProxyService {
           status: 'BLOCKED',
           reason: `Rate limit exceeded for rule "${decision.rule.name}"`,
           retryAfterMs: decision.retryAfterMs,
+          anomalyScore: (decision as any).anomalyScore ?? null,
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
@@ -133,11 +143,13 @@ export class ProxyService {
         status: 'AWAITING_APPROVAL',
         reason: decision.reason,
         decision,
+        anomalyScore: (decision as any).anomalyScore ?? null,
       };
     }
 
     // decision.kind === 'allow'
     const proxied = await this.forwardUpstream(req);
+    proxied.anomalyScore = (decision as any).anomalyScore ?? null;
 
     const diff = process.hrtime(startTime);
     const latencyMs = (diff[0] * 1e9 + diff[1]) / 1e6;

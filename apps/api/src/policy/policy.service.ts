@@ -98,6 +98,10 @@ export class PolicyService {
     }
 
     const decision = evaluate(rules, enriched, this.rateLimiter);
+    // Surface the computed score so the controller can persist it on the audit row.
+    if (enriched.anomalyScore !== undefined) {
+      (decision as any).anomalyScore = enriched.anomalyScore;
+    }
     this.metrics?.recordPolicy(decision.kind);
     return decision;
   }

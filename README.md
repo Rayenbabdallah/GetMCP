@@ -4,7 +4,7 @@
   <p><strong>Zero Trust for AI agents.</strong> Generates the MCP servers your customers' agents need, then enforces who can do what — per request, per agent, per tenant.</p>
   <p>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/tests-137%20passing-brightgreen.svg" alt="Tests" />
+    <img src="https://img.shields.io/badge/tests-152%20passing-brightgreen.svg" alt="Tests" />
     <img src="https://img.shields.io/badge/coverage-per--file%20gates-success.svg" alt="Coverage" />
     <img src="https://img.shields.io/badge/node-%3E%3D20-success.svg" alt="Node 20+" />
     <a href="https://github.com/Rayenbabdallah/GetMCP/issues"><img src="https://img.shields.io/github/issues/Rayenbabdallah/GetMCP" alt="Issues" /></a>

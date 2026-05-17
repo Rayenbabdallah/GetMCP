@@ -147,6 +147,7 @@ export class ProxyController {
         requestBytes,
         responseBytes: null,
         latencyMs: Date.now() - startedAt,
+        anomalyScore: responseBody?.anomalyScore ?? null,
       });
       throw e;
     }
@@ -167,6 +168,7 @@ export class ProxyController {
         requestBytes,
         responseBytes: null,
         latencyMs: Date.now() - startedAt,
+        anomalyScore: outcome.anomalyScore ?? null,
       });
 
       if (outcome.status === 'AWAITING_APPROVAL' && outcome.decision.kind === 'awaiting_approval') {
@@ -244,6 +246,7 @@ export class ProxyController {
         requestBytes,
         responseBytes,
         latencyMs: Date.now() - startedAt,
+        anomalyScore: outcome.anomalyScore ?? null,
       });
     };
 

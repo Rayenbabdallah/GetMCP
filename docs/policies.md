@@ -161,6 +161,53 @@ Behavior:
 
 **Without a Slack bot token configured**: the rule still creates the `PendingRequest` row. The dashboard can drive the decision via a future approval UI; for now, an operator can mark the row by direct DB update.
 
+## BEHAVIORAL_ANOMALY
+
+```jsonc
+{
+  "ruleType": "BEHAVIORAL_ANOMALY",
+  "targetMethod": "*",
+  "targetPath": "*",
+  "actionConfig": {
+    "sensitivity": 0.95,
+    "minBaselineSamples": 50,
+    "baselineWindowDays": 7,
+    "onAnomaly": "audit_only",
+    "approverChannel": "#sec-ops"
+  },
+  "priority": 40
+}
+```
+
+`actionConfig`:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `sensitivity` | float | `0.95` | Score threshold in [0,1]. Lower = more triggers. |
+| `minBaselineSamples` | int | `50` | Below this, the rule bypasses with `observing only`. |
+| `baselineWindowDays` | int | `7` | Days of audit history to derive the baseline from. |
+| `onAnomaly` | string | `"audit_only"` | One of `audit_only` / `block` / `approval`. |
+| `approverChannel` | string | `"#sec-ops"` | Slack channel for the approval card when `onAnomaly: "approval"`. |
+
+Behavior: scores every external_mcp request against a per-agent baseline derived from the audit chain. Two scoring axes today:
+
+- **Path distribution** — never-seen `(method, path)` → score `1.0`. Rare (< 10% of agent's historical traffic) → graded `0.5`-`0.9`. Common → ~`0`.
+- **Volume** — clipped ratio of `(calls in the last 60s) / (baseline calls per minute)`. Reaches `1.0` at 10× the agent's baseline rate.
+
+Composite score is `max(pathScore, volumeScore)`. The scoring math is closed-form and reproducible by hand — no ML, no opaque models. An auditor can recompute any score from the baseline + request shape.
+
+Persisted on every audit row as `AuditLog.anomalyScore` (nullable). **Deliberately not part of the audit hash** — it's derived metadata; including it would break chain compatibility with rows written before this rule type existed.
+
+**Start with `onAnomaly: "audit_only"`** for the first 1-2 weeks of any new agent. Observe what fires, calibrate `sensitivity`, then switch to `approval` or `block` once you trust the baseline. Block-on-first-deploy is the #1 way to generate false-positive incident pages.
+
+**Insufficient baseline → bypass.** New agents below `minBaselineSamples` skip the rule with a `trace[].detail` saying `insufficient baseline (X/50 samples) — observing only`. They never get scored unfairly during onboarding.
+
+**Multi-instance gotcha**: the baseline cache is per-instance (5-min TTL). All instances read from the same Postgres audit chain, so they converge on the same baseline within the TTL window. The detector is consistent; the rate-limiter caveat still applies separately.
+
+**What this does NOT catch yet**: chained agent behavior. Five individually-safe calls that compose into something dangerous are invisible to per-request scoring — the audit chain captures them, the detector does not score the trace. Tracked separately as TRACE_ANOMALY in the roadmap.
+
+See `deploy/load/anomaly-demo.sh` for a runnable demo that builds a baseline, fires both familiar and unfamiliar calls, and shows the persisted scores.
+
 ## Worked example: realistic ruleset for a payments API
 
 ```bash

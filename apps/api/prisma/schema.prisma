@@ -226,6 +226,12 @@ model AuditLog {
   requestBytes   Int           @default(0)
   responseBytes  Int?
   latencyMs      Float
+  // Score in [0, 1] from BEHAVIORAL_ANOMALY rule, when one was active. Stored
+  // as metadata only — deliberately NOT part of the audit hash (it's derived
+  // data, and including it would break chain compatibility with rows written
+  // before this feature shipped). Tamper with this field and the chain still
+  // verifies; tamper with method/path/etc and it doesn't.
+  anomalyScore   Float?
   prevHash       String        // hash of previous row, "genesis" for first
   hash           String        // sha256 of canonical(this row)
   timestamp      DateTime      @default(now())

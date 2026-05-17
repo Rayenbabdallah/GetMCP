@@ -60,22 +60,17 @@ export interface EvaluationTrace {
   detail?: string;
 }
 
+interface DecisionBase {
+  trace: EvaluationTrace[];
+  /** Set when any BEHAVIORAL_ANOMALY rule was active for this request. */
+  anomalyScore?: number | null;
+}
+
 export type Decision =
-  | { kind: 'allow'; trace: EvaluationTrace[] }
-  | { kind: 'block'; rule: PolicyRuleLite; reason: string; trace: EvaluationTrace[] }
-  | {
-      kind: 'awaiting_approval';
-      rule: PolicyRuleLite;
-      reason: string;
-      channel: string;
-      trace: EvaluationTrace[];
-    }
-  | {
-      kind: 'rate_limited';
-      rule: PolicyRuleLite;
-      retryAfterMs: number;
-      trace: EvaluationTrace[];
-    };
+  | ({ kind: 'allow' } & DecisionBase)
+  | ({ kind: 'block'; rule: PolicyRuleLite; reason: string } & DecisionBase)
+  | ({ kind: 'awaiting_approval'; rule: PolicyRuleLite; reason: string; channel: string } & DecisionBase)
+  | ({ kind: 'rate_limited'; rule: PolicyRuleLite; retryAfterMs: number } & DecisionBase);
 
 // MUTATION_APPROVAL, RATE_LIMIT, BEHAVIORAL_ANOMALY only apply to external
 // agents — internal is god-mode by design. BLOCK / ALLOWLIST / AUDIT apply

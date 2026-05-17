@@ -19,6 +19,8 @@ export interface AuditInput {
   requestBytes?: number;
   responseBytes?: number | null;
   latencyMs: number;
+  /** Score in [0, 1] from BEHAVIORAL_ANOMALY rule, if one was active. */
+  anomalyScore?: number | null;
 }
 
 export type VerifyResult =
@@ -99,6 +101,7 @@ export class AuditService {
                 requestBytes: input.requestBytes ?? 0,
                 responseBytes: input.responseBytes ?? null,
                 latencyMs: input.latencyMs,
+                anomalyScore: input.anomalyScore ?? null,
                 prevHash,
                 hash,
               },
