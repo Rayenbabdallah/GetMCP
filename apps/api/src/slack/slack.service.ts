@@ -22,6 +22,10 @@ export interface ApprovalMessageInput {
   requireJustification?: boolean;
   quorumRequired?: number;
   quorumHave?: number;
+  // Recent activity context — last N audit rows for this agent, surfaced so the
+  // approver has enough context to decide without context-switching to the
+  // dashboard. One short line per row.
+  recentActivity?: Array<{ method: string; path: string; actionTaken: string; timestamp: Date }>;
 }
 
 @Injectable()
@@ -127,6 +131,23 @@ export class SlackService {
       });
     }
 
+    // Recent activity context — short bullet list of this agent's last N audited
+    // actions. Helps the approver decide quickly. Only shown when supplied.
+    if (i.recentActivity && i.recentActivity.length > 0) {
+      const lines = i.recentActivity.slice(0, 5).map((r) => {
+        const ago = relativeTime(r.timestamp);
+        const verb = r.actionTaken === 'EXECUTED' ? ':white_check_mark:'
+          : r.actionTaken === 'BLOCKED' ? ':no_entry:'
+          : r.actionTaken === 'AWAITING_APPROVAL' ? ':hourglass:'
+          : ':grey_question:';
+        return `${verb} \`${r.method} ${r.path}\` — ${ago}`;
+      });
+      blocks.push({
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*Recent activity from this agent*\n${lines.join('\n')}` },
+      });
+    }
+
     // Justification input — always visible when required, optional otherwise.
     // We render it as optional (no `*` from Slack) but the backend enforces it
     // and returns an ephemeral error if missing when the rule requires it.
@@ -215,4 +236,12 @@ export class SlackService {
       },
     ];
   }
+}
+
+function relativeTime(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
 }

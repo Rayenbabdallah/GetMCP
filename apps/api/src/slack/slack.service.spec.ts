@@ -65,4 +65,32 @@ describe('SlackService.buildApprovalBlocks', () => {
     const actionsIdx = blocks.findIndex((b: any) => b.type === 'actions');
     expect(inputIdx).toBeLessThan(actionsIdx);
   });
+
+  it('renders recent activity context when supplied', () => {
+    const now = Date.now();
+    const blocks = svc.buildApprovalBlocks(baseInput({
+      recentActivity: [
+        { method: 'GET',    path: '/v1/charges',        actionTaken: 'EXECUTED',          timestamp: new Date(now - 30_000) },
+        { method: 'POST',   path: '/v1/refunds',        actionTaken: 'AWAITING_APPROVAL', timestamp: new Date(now - 300_000) },
+        { method: 'DELETE', path: '/v1/customers/abc',  actionTaken: 'BLOCKED',           timestamp: new Date(now - 3_600_000 * 2) },
+      ],
+    }));
+    const activity = blocks.find((b: any) =>
+      b.type === 'section' && (b.text?.text ?? '').includes('Recent activity from this agent'),
+    );
+    expect(activity).toBeDefined();
+    expect(activity.text.text).toContain('GET');
+    expect(activity.text.text).toContain('/v1/charges');
+    expect(activity.text.text).toContain('just now');
+    expect(activity.text.text).toContain('5m ago');
+    expect(activity.text.text).toContain('2h ago');
+  });
+
+  it('skips recent-activity block when array is empty', () => {
+    const blocks = svc.buildApprovalBlocks(baseInput({ recentActivity: [] }));
+    const activity = blocks.find((b: any) =>
+      b.type === 'section' && (b.text?.text ?? '').includes('Recent activity'),
+    );
+    expect(activity).toBeUndefined();
+  });
 });

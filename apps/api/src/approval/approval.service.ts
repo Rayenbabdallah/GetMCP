@@ -88,6 +88,18 @@ export class ApprovalService {
           select: { actionConfig: true },
         });
         const cfg = (rule?.actionConfig as any) ?? {};
+
+        // Fetch last 5 audited actions for this agent — context for the approver.
+        // Skip if no agentId (shouldn't happen for an external_mcp call, but defensive).
+        const recentActivity = input.agentId
+          ? (await this.prisma.auditLog.findMany({
+              where: { organizationId: input.organizationId, agentId: input.agentId },
+              orderBy: { timestamp: 'desc' },
+              take: 5,
+              select: { method: true, path: true, actionTaken: true, timestamp: true },
+            }))
+          : [];
+
         const ref = await this.slack.postApprovalMessage(token, input.channel, {
           pendingId: pending.id,
           agentName: input.agentName,
@@ -101,6 +113,7 @@ export class ApprovalService {
           requireJustification: Boolean(cfg.requireJustification),
           quorumRequired: Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0 ? cfg.quorumRequired : 1,
           quorumHave: 0,
+          recentActivity,
         });
         await this.prisma.pendingRequest.update({
           where: { id: pending.id },
@@ -328,15 +341,105 @@ export class ApprovalService {
   }
 
   // Lazy expiration on read. Marks any PENDING row past TTL as EXPIRED + audits.
+  // Includes the per-vote approval log so callers can render quorum progress.
   async getById(organizationId: string, id: string) {
     const row = await this.prisma.pendingRequest.findFirst({
       where: { id, organizationId },
+      include: { approvals: { orderBy: { decidedAt: 'asc' } } },
     });
     if (!row) throw new NotFoundException();
     if (row.status === 'PENDING' && row.expiresAt < new Date()) {
       return this.expire(row.id);
     }
     return row;
+  }
+
+  // Paginated list of pending requests, optionally filtered by status.
+  // Includes the count of approval votes so the UI can render N-of-M progress
+  // without N+1 querying.
+  async list(
+    organizationId: string,
+    opts: { status?: string; limit?: number; cursor?: string } = {},
+  ) {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+    const rows = await this.prisma.pendingRequest.findMany({
+      where: {
+        organizationId,
+        ...(opts.status ? { status: opts.status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+      include: {
+        _count: { select: { approvals: true } },
+      },
+    });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return { data: page, nextCursor: hasMore ? page[page.length - 1].id : null };
+  }
+
+  // Per-approver health stats over the last `windowDays` (default 30).
+  // Used by the dashboard to surface rubber-stamp risk (e.g. "Alice approves
+  // 95% of requests in under 3 seconds — coaching opportunity").
+  // Returns aggregated rows; does NOT expose anything that would let a manager
+  // PIP an individual approver — the dashboard renders patterns, not blame.
+  async approverStats(organizationId: string, windowDays = 30) {
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const votes = await this.prisma.pendingRequestApproval.findMany({
+      where: {
+        decidedAt: { gte: since },
+        pendingRequest: { organizationId },
+      },
+      include: {
+        pendingRequest: { select: { createdAt: true, organizationId: true } },
+      },
+    });
+    const byUser = new Map<string, {
+      approverSlackUserId: string;
+      approverSlackUserName: string;
+      total: number;
+      approved: number;
+      denied: number;
+      withJustification: number;
+      timesToDecisionMs: number[];
+    }>();
+    for (const v of votes) {
+      const k = v.approverSlackUserId;
+      let agg = byUser.get(k);
+      if (!agg) {
+        agg = {
+          approverSlackUserId: v.approverSlackUserId,
+          approverSlackUserName: v.approverSlackUserName,
+          total: 0,
+          approved: 0,
+          denied: 0,
+          withJustification: 0,
+          timesToDecisionMs: [],
+        };
+        byUser.set(k, agg);
+      }
+      agg.total++;
+      if (v.decision === 'APPROVED') agg.approved++;
+      else agg.denied++;
+      if (v.justification && v.justification.trim().length > 0) agg.withJustification++;
+      const createdAt = v.pendingRequest?.createdAt;
+      if (createdAt) {
+        agg.timesToDecisionMs.push(v.decidedAt.getTime() - createdAt.getTime());
+      }
+    }
+    return Array.from(byUser.values()).map((a) => {
+      const sorted = a.timesToDecisionMs.slice().sort((x, y) => x - y);
+      const median = sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
+      return {
+        approverSlackUserId: a.approverSlackUserId,
+        approverSlackUserName: a.approverSlackUserName,
+        totalDecisions: a.total,
+        approvalRate: a.total === 0 ? 0 : a.approved / a.total,
+        justificationRate: a.total === 0 ? 0 : a.withJustification / a.total,
+        medianTimeToDecisionMs: median,
+      };
+    }).sort((a, b) => b.totalDecisions - a.totalDecisions);
   }
 
   async expire(id: string) {

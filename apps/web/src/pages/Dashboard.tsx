@@ -20,6 +20,15 @@ interface AuditRow {
   timestamp: string;
 }
 
+interface ApproverStat {
+  approverSlackUserId: string;
+  approverSlackUserName: string;
+  totalDecisions: number;
+  approvalRate: number;
+  justificationRate: number;
+  medianTimeToDecisionMs: number | null;
+}
+
 export function Dashboard() {
   const [org, setOrg] = useState<any>(null);
   const [verify, setVerify] = useState<any>(null);
@@ -27,6 +36,7 @@ export function Dashboard() {
   const [pending, setPending] = useState<number | null>(null);
   const [policies, setPolicies] = useState<any[] | null>(null);
   const [agents, setAgents] = useState<any[] | null>(null);
+  const [approverStats, setApproverStats] = useState<ApproverStat[] | null>(null);
 
   useEffect(() => {
     api('/orgs/me').then(setOrg).catch(() => undefined);
@@ -35,14 +45,13 @@ export function Dashboard() {
       .then((r) => setRecent(r.data))
       .catch(() => setRecent([]));
     api('/policies').then(setPolicies).catch(() => setPolicies([]));
-    api('/agents').then((a) => {
-      setAgents(a);
-      // Fetch pending count by looking at audit for AWAITING_APPROVAL — proxy approximation
-      // A dedicated /approvals?status=PENDING endpoint would be better; for now we count from audit.
-    }).catch(() => setAgents([]));
-    api<{ data: AuditRow[] }>('/audit', { query: { limit: 100 } })
-      .then((r) => setPending(r.data.filter((row) => row.actionTaken === 'AWAITING_APPROVAL').length))
+    api('/agents').then(setAgents).catch(() => setAgents([]));
+    api<{ data: any[] }>('/approvals', { query: { status: 'PENDING', limit: 200 } })
+      .then((r) => setPending(r.data.length))
       .catch(() => setPending(0));
+    api<ApproverStat[]>('/approvals/stats', { query: { windowDays: 30 } })
+      .then(setApproverStats)
+      .catch(() => setApproverStats([]));
   }, []);
 
   return (
@@ -79,7 +88,7 @@ export function Dashboard() {
           label="Pending approvals"
           value={pending !== null ? String(pending) : '…'}
           tone={pending && pending > 0 ? 'warning' : 'neutral'}
-          sub="last 100 audited calls"
+          sub="awaiting Slack decision"
           to="/app/approvals"
         />
       </div>
@@ -163,7 +172,83 @@ export function Dashboard() {
           </ul>
         </Card>
       </div>
+
+      {/* Approval health — surfaces patterns, not blame. */}
+      <div className="mt-6">
+        <Card>
+          <CardSection
+            title="Approval health"
+            description="Per-approver patterns over the last 30 days. Designed to surface coaching opportunities (e.g. consistently fast approvals without justification) — not to blame individuals."
+            actions={
+              approverStats && approverStats.length > 0 ? (
+                <Link to="/app/approvals">
+                  <Button variant="ghost" size="sm">View approvals</Button>
+                </Link>
+              ) : undefined
+            }
+          />
+          {approverStats === null ? (
+            <div className="px-6 py-4">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-full" />
+            </div>
+          ) : approverStats.length === 0 ? (
+            <div className="px-6 py-12 text-center text-sm text-slate-500">
+              No approval votes yet. Configure a MUTATION_APPROVAL policy and connect Slack to start collecting data.
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {approverStats.map((s) => (
+                <li key={s.approverSlackUserId} className="flex items-center justify-between px-6 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-medium text-slate-900">@{s.approverSlackUserName}</span>
+                    <span className="text-xs text-slate-500">{s.totalDecisions} decision(s)</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <StatLine label="approval rate" value={`${Math.round(s.approvalRate * 100)}%`} />
+                    <StatLine label="with justification" value={`${Math.round(s.justificationRate * 100)}%`} />
+                    <StatLine
+                      label="median time"
+                      value={
+                        s.medianTimeToDecisionMs === null
+                          ? '—'
+                          : s.medianTimeToDecisionMs < 1000
+                            ? `${s.medianTimeToDecisionMs}ms`
+                            : s.medianTimeToDecisionMs < 60_000
+                              ? `${Math.round(s.medianTimeToDecisionMs / 1000)}s`
+                              : `${Math.round(s.medianTimeToDecisionMs / 60_000)}m`
+                      }
+                      flag={
+                        s.medianTimeToDecisionMs !== null && s.medianTimeToDecisionMs < 3000
+                          ? 'warning'
+                          : undefined
+                      }
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
     </>
+  );
+}
+
+function StatLine({
+  label, value, flag,
+}: {
+  label: string; value: string; flag?: 'warning' | 'danger';
+}) {
+  const tone =
+    flag === 'danger' ? 'text-red-600'
+    : flag === 'warning' ? 'text-amber-600'
+    : 'text-slate-700';
+  return (
+    <div className="text-right">
+      <div className={`font-semibold ${tone}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-slate-400">{label}</div>
+    </div>
   );
 }
 
