@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { PageHeader } from '../components/Layout';
 import { Skeleton } from '../components/ui/Skeleton';
 import { formatRelative, formatLatency } from '../lib/format';
+import { AnomalyChart } from '../components/AnomalyChart';
 
 interface AuditRow {
   id: string;
@@ -29,6 +30,16 @@ interface ApproverStat {
   medianTimeToDecisionMs: number | null;
 }
 
+interface AnomalyPoint {
+  id: string;
+  timestamp: string;
+  agentId: string | null;
+  method: string;
+  path: string;
+  actionTaken: string;
+  anomalyScore: number;
+}
+
 export function Dashboard() {
   const [org, setOrg] = useState<any>(null);
   const [verify, setVerify] = useState<any>(null);
@@ -37,6 +48,7 @@ export function Dashboard() {
   const [policies, setPolicies] = useState<any[] | null>(null);
   const [agents, setAgents] = useState<any[] | null>(null);
   const [approverStats, setApproverStats] = useState<ApproverStat[] | null>(null);
+  const [anomalies, setAnomalies] = useState<{ data: AnomalyPoint[]; windowHours: number } | null>(null);
 
   useEffect(() => {
     api('/orgs/me').then(setOrg).catch(() => undefined);
@@ -52,6 +64,9 @@ export function Dashboard() {
     api<ApproverStat[]>('/approvals/stats', { query: { windowDays: 30 } })
       .then(setApproverStats)
       .catch(() => setApproverStats([]));
+    api<{ data: AnomalyPoint[]; windowHours: number }>('/audit/anomalies', { query: { windowHours: 24 } })
+      .then(setAnomalies)
+      .catch(() => setAnomalies({ data: [], windowHours: 24 }));
   }, []);
 
   return (
@@ -229,6 +244,30 @@ export function Dashboard() {
               ))}
             </ul>
           )}
+        </Card>
+      </div>
+
+      {/* Behavioural anomaly chart — scored requests over the last 24h. */}
+      <div className="mt-6">
+        <Card>
+          <CardSection
+            title="Behavioural anomaly scores (24h)"
+            description="Each dot is one scored request. The dashed line is the configured threshold — points above it triggered the rule's action."
+            actions={
+              <Link to="/app/audit">
+                <Button variant="ghost" size="sm">View audit log</Button>
+              </Link>
+            }
+          />
+          <div className="px-4 pb-4 pt-2">
+            {anomalies === null ? (
+              <div className="px-4 py-8">
+                <Skeleton className="h-44 w-full" />
+              </div>
+            ) : (
+              <AnomalyChart data={anomalies.data} windowHours={anomalies.windowHours} />
+            )}
+          </div>
         </Card>
       </div>
     </>

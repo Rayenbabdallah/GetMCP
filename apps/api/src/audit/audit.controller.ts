@@ -61,6 +61,41 @@ export class AuditController {
     return this.audit.verifyChain(ctx.organizationId);
   }
 
+  // Lean payload of scored requests for the dashboard chart. Only returns rows
+  // where a BEHAVIORAL_ANOMALY rule was active (anomalyScore is not null).
+  // Default window: last 24h. Capped at 500 rows.
+  @Get('anomalies')
+  async anomalies(
+    @CurrentOrg() ctx: AuthContext,
+    @Query('windowHours') windowHoursStr?: string,
+    @Query('limit') limitStr?: string,
+  ) {
+    const windowHours = Math.min(Math.max(parseInt(windowHoursStr || '24', 10) || 24, 1), 168);
+    const limit = Math.min(Math.max(parseInt(limitStr || '500', 10) || 500, 1), 2000);
+    const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
+
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        organizationId: ctx.organizationId,
+        anomalyScore: { not: null },
+        timestamp: { gte: since },
+      },
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        timestamp: true,
+        agentId: true,
+        method: true,
+        path: true,
+        actionTaken: true,
+        anomalyScore: true,
+      },
+    });
+
+    return { windowHours, count: rows.length, data: rows };
+  }
+
   @Get('export')
   async export(@CurrentOrg() ctx: AuthContext, @Res() res: Response) {
     res.setHeader('Content-Type', 'application/x-ndjson');
