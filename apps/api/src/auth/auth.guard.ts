@@ -40,7 +40,10 @@ export class AuthGuard implements CanActivate {
       if (await verifyApiKey(token, candidate.hash)) {
         // best-effort lastUsedAt update; do not block the request on failure
         this.prisma.apiKey
-          .update({ where: { id: candidate.id }, data: { lastUsedAt: new Date() } })
+          .update({
+            where: { id: candidate.id },
+            data: { lastUsedAt: new Date() },
+          })
           .catch(() => undefined);
 
         req.auth = {

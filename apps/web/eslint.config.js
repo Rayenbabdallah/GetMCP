@@ -18,5 +18,11 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Matches apps/api: `any` is allowed at the untyped API-response boundary.
+      '@typescript-eslint/no-explicit-any': 'off',
+      // Pages intentionally fetch on mount with `useEffect(() => { load() }, [])`.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

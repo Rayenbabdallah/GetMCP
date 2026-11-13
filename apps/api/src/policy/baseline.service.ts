@@ -26,11 +26,11 @@ export interface Baseline {
 }
 
 export interface AnomalyScore {
-  composite: number;        // max of pathScore and volumeScore
-  pathScore: number;        // 0 (normal) → 1 (never-before-seen path)
-  volumeScore: number;      // 0 (normal) → 1 (10× baseline rate)
+  composite: number; // max of pathScore and volumeScore
+  pathScore: number; // 0 (normal) → 1 (never-before-seen path)
+  volumeScore: number; // 0 (normal) → 1 (10× baseline rate)
   baselineSampleCount: number;
-  reason: string;           // human-readable, audit-quality
+  reason: string; // human-readable, audit-quality
 }
 
 interface CacheEntry {
@@ -46,7 +46,11 @@ export class BehavioralBaselineService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Compute (or return cached) baseline for one agent. Window in days.
-  async getBaseline(organizationId: string, agentId: string, windowDays: number): Promise<Baseline> {
+  async getBaseline(
+    organizationId: string,
+    agentId: string,
+    windowDays: number,
+  ): Promise<Baseline> {
     const key = `${organizationId}:${agentId}:${windowDays}`;
     const now = Date.now();
     const cached = this.cache.get(key);
@@ -92,7 +96,11 @@ export class BehavioralBaselineService {
     path: string,
     windowDays: number,
   ): Promise<AnomalyScore> {
-    const baseline = await this.getBaseline(organizationId, agentId, windowDays);
+    const baseline = await this.getBaseline(
+      organizationId,
+      agentId,
+      windowDays,
+    );
 
     // --- Path score ---
     const key = `${method.toUpperCase()} ${path}`;
@@ -100,7 +108,8 @@ export class BehavioralBaselineService {
     // Never seen → 1.0. Rare (< 1% of historical traffic) → 0.5-0.9. Common → ~0.
     let pathScore: number;
     if (seen === 0) pathScore = 1;
-    else if (seen >= 0.1) pathScore = 0; // a normal endpoint for this agent
+    else if (seen >= 0.1)
+      pathScore = 0; // a normal endpoint for this agent
     else pathScore = 1 - seen / 0.1; // graded: rarer = higher
 
     // --- Volume score ---
@@ -110,16 +119,23 @@ export class BehavioralBaselineService {
       where: { organizationId, agentId, timestamp: { gte: sinceVolume } },
     });
     const currentRatePerMinute = recentCount;
-    const spikeMultiplier = baseline.baselineCallsPerMinute === 0
-      ? (currentRatePerMinute > 5 ? VOLUME_SPIKE_THRESHOLD : 0) // no history but firing hard = anomaly
-      : currentRatePerMinute / baseline.baselineCallsPerMinute;
-    const volumeScore = Math.max(0, Math.min(1, spikeMultiplier / VOLUME_SPIKE_THRESHOLD));
+    const spikeMultiplier =
+      baseline.baselineCallsPerMinute === 0
+        ? currentRatePerMinute > 5
+          ? VOLUME_SPIKE_THRESHOLD
+          : 0 // no history but firing hard = anomaly
+        : currentRatePerMinute / baseline.baselineCallsPerMinute;
+    const volumeScore = Math.max(
+      0,
+      Math.min(1, spikeMultiplier / VOLUME_SPIKE_THRESHOLD),
+    );
 
     const composite = Math.max(pathScore, volumeScore);
 
-    const reason = composite === 0
-      ? `Within baseline (path seen ${(seen * 100).toFixed(1)}% of the time, rate ${currentRatePerMinute}/min vs baseline ${baseline.baselineCallsPerMinute.toFixed(2)}/min)`
-      : `Path score ${pathScore.toFixed(2)} (${seen === 0 ? 'never seen' : (seen * 100).toFixed(1) + '% historical'}), volume score ${volumeScore.toFixed(2)} (${currentRatePerMinute}/min vs baseline ${baseline.baselineCallsPerMinute.toFixed(2)}/min)`;
+    const reason =
+      composite === 0
+        ? `Within baseline (path seen ${(seen * 100).toFixed(1)}% of the time, rate ${currentRatePerMinute}/min vs baseline ${baseline.baselineCallsPerMinute.toFixed(2)}/min)`
+        : `Path score ${pathScore.toFixed(2)} (${seen === 0 ? 'never seen' : (seen * 100).toFixed(1) + '% historical'}), volume score ${volumeScore.toFixed(2)} (${currentRatePerMinute}/min vs baseline ${baseline.baselineCallsPerMinute.toFixed(2)}/min)`;
 
     return {
       composite,
@@ -136,5 +152,7 @@ export class BehavioralBaselineService {
       if (k.startsWith(`${organizationId}:${agentId}:`)) this.cache.delete(k);
     }
   }
-  clearCache(): void { this.cache.clear(); }
+  clearCache(): void {
+    this.cache.clear();
+  }
 }

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { computeAuditHash, rowToHashable } from './canonical.util';
@@ -45,7 +50,9 @@ export class AuditService {
   // Atomic, chain-extending insert. Serializable isolation prevents two
   // concurrent writers from claiming the same `seq` for one organization;
   // Prisma will throw P2034 on a serialization conflict and we retry.
-  async record(input: AuditInput): Promise<{ id: string; seq: number; hash: string }> {
+  async record(
+    input: AuditInput,
+  ): Promise<{ id: string; seq: number; hash: string }> {
     const MAX_RETRIES = 5;
     let attempt = 0;
     while (true) {
@@ -56,7 +63,10 @@ export class AuditService {
               where: { id: input.organizationId },
               select: { lastAuditHash: true, lastAuditSeq: true },
             });
-            if (!org) throw new NotFoundException(`Org ${input.organizationId} not found`);
+            if (!org)
+              throw new NotFoundException(
+                `Org ${input.organizationId} not found`,
+              );
 
             const seq = org.lastAuditSeq + 1;
             const prevHash = org.lastAuditHash;

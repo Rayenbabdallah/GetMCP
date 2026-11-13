@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import {
+  Counter,
+  Histogram,
+  Registry,
+  collectDefaultMetrics,
+} from 'prom-client';
 
 @Injectable()
 export class MetricsService {
@@ -58,12 +63,26 @@ export class MetricsService {
     });
   }
 
-  recordProxy(action: string, source: string, upstreamStatus: number | null, durationMs: number) {
-    this.proxyRequests.inc({ action, source, upstream_status: upstreamStatus !== null ? String(upstreamStatus) : 'none' });
+  recordProxy(
+    action: string,
+    source: string,
+    upstreamStatus: number | null,
+    durationMs: number,
+  ) {
+    this.proxyRequests.inc({
+      action,
+      source,
+      upstream_status:
+        upstreamStatus !== null ? String(upstreamStatus) : 'none',
+    });
     this.proxyDuration.observe({ action, source }, durationMs);
   }
-  recordPolicy(kind: string) { this.policyDecisions.inc({ kind }); }
-  recordAudit(result: 'ok' | 'failed') { this.auditWrites.inc({ result }); }
+  recordPolicy(kind: string) {
+    this.policyDecisions.inc({ kind });
+  }
+  recordAudit(result: 'ok' | 'failed') {
+    this.auditWrites.inc({ result });
+  }
   recordApproval(event: 'created' | 'approved' | 'denied' | 'expired') {
     this.approvalEvents.inc({ event });
   }

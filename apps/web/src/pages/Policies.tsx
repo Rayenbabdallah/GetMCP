@@ -144,7 +144,7 @@ function CreatePolicyDialog({ onClose, onCreated }: { onClose: () => void; onCre
 
   async function submit() {
     setError(null);
-    let parsed = {};
+    let parsed: unknown;
     try { parsed = JSON.parse(actionConfig || '{}'); }
     catch { setError('actionConfig must be valid JSON'); return; }
     setBusy(true);

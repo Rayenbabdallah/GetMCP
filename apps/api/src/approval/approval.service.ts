@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ProxyService, AgentRequest } from '../proxy/proxy.service';
 import { AuditService } from '../audit/audit.service';
@@ -92,12 +97,20 @@ export class ApprovalService {
         // Fetch last 5 audited actions for this agent — context for the approver.
         // Skip if no agentId (shouldn't happen for an external_mcp call, but defensive).
         const recentActivity = input.agentId
-          ? (await this.prisma.auditLog.findMany({
-              where: { organizationId: input.organizationId, agentId: input.agentId },
+          ? await this.prisma.auditLog.findMany({
+              where: {
+                organizationId: input.organizationId,
+                agentId: input.agentId,
+              },
               orderBy: { timestamp: 'desc' },
               take: 5,
-              select: { method: true, path: true, actionTaken: true, timestamp: true },
-            }))
+              select: {
+                method: true,
+                path: true,
+                actionTaken: true,
+                timestamp: true,
+              },
+            })
           : [];
 
         const ref = await this.slack.postApprovalMessage(token, input.channel, {
@@ -111,7 +124,10 @@ export class ApprovalService {
           ruleName: input.ruleName,
           expiresAt: pending.expiresAt,
           requireJustification: Boolean(cfg.requireJustification),
-          quorumRequired: Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0 ? cfg.quorumRequired : 1,
+          quorumRequired:
+            Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0
+              ? cfg.quorumRequired
+              : 1,
           quorumHave: 0,
           recentActivity,
         });
@@ -125,7 +141,9 @@ export class ApprovalService {
         );
       }
     } catch (err: any) {
-      this.logger.error(`Slack post failed for pending ${pending.id}: ${err.message}`);
+      this.logger.error(
+        `Slack post failed for pending ${pending.id}: ${err.message}`,
+      );
     }
 
     this.metrics?.recordApproval('created');
@@ -138,13 +156,17 @@ export class ApprovalService {
   //   - { kind: 'already_voted', ... }              — this user already voted on this pending
   //   - { kind: 'pending_quorum', have, need }      — vote recorded, more votes needed
   //   - { kind: 'decided', pending }                — quorum reached, request replayed and decided
-  async approveWithQuorum(input: DecisionInput): Promise<ApprovalAttemptResult> {
+  async approveWithQuorum(
+    input: DecisionInput,
+  ): Promise<ApprovalAttemptResult> {
     // Fetch the originating rule to learn quorum + justification policy.
     const rule = await this.lookupRuleForPending(input.pendingId);
     const cfg = (rule?.actionConfig as any) ?? {};
     const requireJustification = Boolean(cfg.requireJustification);
-    const quorumRequired = Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0
-      ? cfg.quorumRequired : 1;
+    const quorumRequired =
+      Number.isInteger(cfg.quorumRequired) && cfg.quorumRequired > 0
+        ? cfg.quorumRequired
+        : 1;
 
     if (requireJustification && !input.justification?.trim()) {
       return { kind: 'rejected_missing_justification' };
@@ -214,16 +236,23 @@ export class ApprovalService {
       path: pending.path,
       source: pending.source as 'internal_mcp' | 'external_mcp',
       tenantId: pending.tenantId ?? undefined,
-      headers: pending.reasoning ? { 'x-agent-reasoning': pending.reasoning } : {},
+      headers: pending.reasoning
+        ? { 'x-agent-reasoning': pending.reasoning }
+        : {},
       query: (pending.query as any) ?? undefined,
       body: (pending.body as any) ?? undefined,
       bypassApproval: true,
     };
 
     const startedAt = Date.now();
-    let captured: { status: number | null; headers: any; body: any } = { status: null, headers: null, body: null };
+    let captured: { status: number | null; headers: any; body: any } = {
+      status: null,
+      headers: null,
+      body: null,
+    };
     let actionTaken: 'EXECUTED' | 'BLOCKED' = 'EXECUTED';
-    let auditReason: string | null = `approved by ${input.approverSlackUserName}`;
+    let auditReason: string | null =
+      `approved by ${input.approverSlackUserName}`;
 
     try {
       const out = await this.proxy.interceptAndExecute(replay);
@@ -233,7 +262,11 @@ export class ApprovalService {
         auditReason = `replay blocked: ${out.reason}`;
         captured = { status: null, headers: null, body: { error: out.reason } };
       } else {
-        captured = await this.captureStream(out.status, out.headers, out.stream);
+        captured = await this.captureStream(
+          out.status,
+          out.headers,
+          out.stream,
+        );
       }
     } catch (err: any) {
       const status = err?.status ?? 502;
@@ -263,8 +296,12 @@ export class ApprovalService {
       reason: auditReason,
       actionTaken,
       upstreamStatus: captured.status,
-      requestBytes: pending.body ? Buffer.byteLength(JSON.stringify(pending.body)) : 0,
-      responseBytes: captured.body ? Buffer.byteLength(JSON.stringify(captured.body)) : null,
+      requestBytes: pending.body
+        ? Buffer.byteLength(JSON.stringify(pending.body))
+        : 0,
+      responseBytes: captured.body
+        ? Buffer.byteLength(JSON.stringify(captured.body))
+        : null,
       latencyMs: Date.now() - startedAt,
     });
 
@@ -312,7 +349,9 @@ export class ApprovalService {
       reason: `denied by ${input.approverSlackUserName}${reason ? ': ' + reason : ''}`,
       actionTaken: 'BLOCKED',
       upstreamStatus: null,
-      requestBytes: pending.body ? Buffer.byteLength(JSON.stringify(pending.body)) : 0,
+      requestBytes: pending.body
+        ? Buffer.byteLength(JSON.stringify(pending.body))
+        : 0,
       responseBytes: null,
       latencyMs: 0,
     });
@@ -376,7 +415,10 @@ export class ApprovalService {
     });
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
-    return { data: page, nextCursor: hasMore ? page[page.length - 1].id : null };
+    return {
+      data: page,
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+    };
   }
 
   // Per-approver health stats over the last `windowDays` (default 30).
@@ -395,15 +437,18 @@ export class ApprovalService {
         pendingRequest: { select: { createdAt: true, organizationId: true } },
       },
     });
-    const byUser = new Map<string, {
-      approverSlackUserId: string;
-      approverSlackUserName: string;
-      total: number;
-      approved: number;
-      denied: number;
-      withJustification: number;
-      timesToDecisionMs: number[];
-    }>();
+    const byUser = new Map<
+      string,
+      {
+        approverSlackUserId: string;
+        approverSlackUserName: string;
+        total: number;
+        approved: number;
+        denied: number;
+        withJustification: number;
+        timesToDecisionMs: number[];
+      }
+    >();
     for (const v of votes) {
       const k = v.approverSlackUserId;
       let agg = byUser.get(k);
@@ -422,24 +467,28 @@ export class ApprovalService {
       agg.total++;
       if (v.decision === 'APPROVED') agg.approved++;
       else agg.denied++;
-      if (v.justification && v.justification.trim().length > 0) agg.withJustification++;
+      if (v.justification && v.justification.trim().length > 0)
+        agg.withJustification++;
       const createdAt = v.pendingRequest?.createdAt;
       if (createdAt) {
         agg.timesToDecisionMs.push(v.decidedAt.getTime() - createdAt.getTime());
       }
     }
-    return Array.from(byUser.values()).map((a) => {
-      const sorted = a.timesToDecisionMs.slice().sort((x, y) => x - y);
-      const median = sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
-      return {
-        approverSlackUserId: a.approverSlackUserId,
-        approverSlackUserName: a.approverSlackUserName,
-        totalDecisions: a.total,
-        approvalRate: a.total === 0 ? 0 : a.approved / a.total,
-        justificationRate: a.total === 0 ? 0 : a.withJustification / a.total,
-        medianTimeToDecisionMs: median,
-      };
-    }).sort((a, b) => b.totalDecisions - a.totalDecisions);
+    return Array.from(byUser.values())
+      .map((a) => {
+        const sorted = a.timesToDecisionMs.slice().sort((x, y) => x - y);
+        const median =
+          sorted.length === 0 ? null : sorted[Math.floor(sorted.length / 2)];
+        return {
+          approverSlackUserId: a.approverSlackUserId,
+          approverSlackUserName: a.approverSlackUserName,
+          totalDecisions: a.total,
+          approvalRate: a.total === 0 ? 0 : a.approved / a.total,
+          justificationRate: a.total === 0 ? 0 : a.withJustification / a.total,
+          medianTimeToDecisionMs: median,
+        };
+      })
+      .sort((a, b) => b.totalDecisions - a.totalDecisions);
   }
 
   async expire(id: string) {
@@ -457,7 +506,9 @@ export class ApprovalService {
       reason: `approval expired after TTL`,
       actionTaken: 'BLOCKED',
       upstreamStatus: null,
-      requestBytes: expired.body ? Buffer.byteLength(JSON.stringify(expired.body)) : 0,
+      requestBytes: expired.body
+        ? Buffer.byteLength(JSON.stringify(expired.body))
+        : 0,
       responseBytes: null,
       latencyMs: 0,
     });
@@ -473,7 +524,9 @@ export class ApprovalService {
       take: 100,
     });
     for (const s of stale) {
-      await this.expire(s.id).catch((e) => this.logger.warn(`expire ${s.id} failed: ${e.message}`));
+      await this.expire(s.id).catch((e) =>
+        this.logger.warn(`expire ${s.id} failed: ${e.message}`),
+      );
     }
     return stale.length;
   }
@@ -492,14 +545,24 @@ export class ApprovalService {
     return this.prisma.pendingRequest.findUnique({ where: { id } });
   }
 
-  private async captureStream(status: number, headers: any, stream: NodeJS.ReadableStream) {
+  private async captureStream(
+    status: number,
+    headers: any,
+    stream: NodeJS.ReadableStream,
+  ) {
     const chunks: Buffer[] = [];
     let bytes = 0;
     let truncated = false;
     for await (const chunk of stream as AsyncIterable<Buffer>) {
       bytes += chunk.length;
       if (bytes > MAX_BODY_BYTES) {
-        chunks.push(Buffer.from(chunk.toString('utf8').slice(0, MAX_BODY_BYTES - (bytes - chunk.length))));
+        chunks.push(
+          Buffer.from(
+            chunk
+              .toString('utf8')
+              .slice(0, MAX_BODY_BYTES - (bytes - chunk.length)),
+          ),
+        );
         truncated = true;
         break;
       }
@@ -513,7 +576,8 @@ export class ApprovalService {
     } catch {
       body = { _text: text + (truncated ? '\n[truncated]' : '') };
     }
-    if (truncated && typeof body === 'object' && body !== null) body._truncated = true;
+    if (truncated && typeof body === 'object' && body !== null)
+      body._truncated = true;
     return { status, headers, body };
   }
 

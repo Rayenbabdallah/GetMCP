@@ -32,7 +32,11 @@ export const loggerConfig: Params = {
       res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
     },
     // Map default log levels by HTTP status; treat 5xx as error.
-    customLogLevel: (_req: IncomingMessage, res: ServerResponse, err?: Error) => {
+    customLogLevel: (
+      _req: IncomingMessage,
+      res: ServerResponse,
+      err?: Error,
+    ) => {
       if (err || res.statusCode >= 500) return 'error';
       if (res.statusCode >= 400) return 'warn';
       return 'info';

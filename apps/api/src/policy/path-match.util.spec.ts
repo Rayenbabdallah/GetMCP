@@ -17,7 +17,9 @@ describe('pathMatches', () => {
     expect(pathMatches('/v1/users/:id', '/v1/users/abc')).toBe(true);
     expect(pathMatches('/v1/users/:id', '/v1/users/123-xyz')).toBe(true);
     expect(pathMatches('/v1/users/:id', '/v1/users/abc/orders')).toBe(false);
-    expect(pathMatches('/v1/users/:id/orders', '/v1/users/abc/orders')).toBe(true);
+    expect(pathMatches('/v1/users/:id/orders', '/v1/users/abc/orders')).toBe(
+      true,
+    );
   });
 
   it('/foo/* prefix matches deep paths', () => {

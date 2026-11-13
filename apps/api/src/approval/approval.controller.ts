@@ -29,7 +29,10 @@ export class ApprovalController {
   // auto-approval rate) without attaching blame to individuals — designed for
   // coaching, not PIPs. See docs/security.md "blame vs coach" stance.
   @Get('stats')
-  async stats(@CurrentOrg() org: AuthContext, @Query('windowDays') windowDays?: string) {
+  async stats(
+    @CurrentOrg() org: AuthContext,
+    @Query('windowDays') windowDays?: string,
+  ) {
     const days = windowDays ? parseInt(windowDays, 10) : 30;
     return this.approvals.approverStats(org.organizationId, days);
   }

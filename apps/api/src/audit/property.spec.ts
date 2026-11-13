@@ -16,7 +16,10 @@ import { computeAuditHash, rowToHashable } from './canonical.util';
 // property — if either of these stops being true, the §4 moat is broken.
 
 function fakePrisma() {
-  const orgs = new Map<string, { lastAuditHash: string; lastAuditSeq: number }>();
+  const orgs = new Map<
+    string,
+    { lastAuditHash: string; lastAuditSeq: number }
+  >();
   const logs: any[] = [];
   let nextId = 1;
   const tx = {
@@ -24,7 +27,8 @@ function fakePrisma() {
       findUnique: async ({ where }: any) => orgs.get(where.id) ?? null,
       update: async ({ where, data }: any) => {
         const o = orgs.get(where.id)!;
-        if (data.lastAuditHash !== undefined) o.lastAuditHash = data.lastAuditHash;
+        if (data.lastAuditHash !== undefined)
+          o.lastAuditHash = data.lastAuditHash;
         if (data.lastAuditSeq !== undefined) o.lastAuditSeq = data.lastAuditSeq;
         return o;
       },
@@ -36,7 +40,9 @@ function fakePrisma() {
         return row;
       },
       findMany: async ({ where, take, cursor, skip }: any) => {
-        let rows = logs.filter((r) => r.organizationId === where.organizationId);
+        let rows = logs.filter(
+          (r) => r.organizationId === where.organizationId,
+        );
         rows.sort((a, b) => a.seq - b.seq);
         if (cursor) {
           const i = rows.findIndex((r) => r.id === cursor.id);
@@ -51,9 +57,20 @@ function fakePrisma() {
   return { prisma, orgs, logs };
 }
 
-const ACTIONS = ['EXECUTED', 'BLOCKED', 'AWAITING_APPROVAL', 'INCOMPLETE'] as const;
+const ACTIONS = [
+  'EXECUTED',
+  'BLOCKED',
+  'AWAITING_APPROVAL',
+  'INCOMPLETE',
+] as const;
 const SOURCES = ['internal_mcp', 'external_mcp', 'system'] as const;
-const PATHS = ['/v1/charges', '/v1/refunds', '/v1/customers/abc', '/admin/users', '/v2/items/{id}'];
+const PATHS = [
+  '/v1/charges',
+  '/v1/refunds',
+  '/v1/customers/abc',
+  '/admin/users',
+  '/v2/items/{id}',
+];
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 function pick<T>(arr: readonly T[]): T {
@@ -64,17 +81,24 @@ function randomInput(orgId: string) {
   return {
     organizationId: orgId,
     apiKeyId: 'k-' + randomBytes(4).toString('hex'),
-    agentId: Math.random() < 0.7 ? 'agent-' + randomBytes(4).toString('hex') : null,
+    agentId:
+      Math.random() < 0.7 ? 'agent-' + randomBytes(4).toString('hex') : null,
     method: pick(METHODS),
     path: pick(PATHS),
     source: pick(SOURCES) as 'internal_mcp' | 'external_mcp' | 'system',
-    tenantId: Math.random() < 0.5 ? 'tenant-' + randomBytes(2).toString('hex') : null,
+    tenantId:
+      Math.random() < 0.5 ? 'tenant-' + randomBytes(2).toString('hex') : null,
     reasoning: Math.random() < 0.5 ? randomBytes(20).toString('hex') : null,
-    reason: Math.random() < 0.3 ? 'random-reason-' + Math.floor(Math.random() * 1000) : null,
+    reason:
+      Math.random() < 0.3
+        ? 'random-reason-' + Math.floor(Math.random() * 1000)
+        : null,
     actionTaken: pick(ACTIONS) as any,
-    upstreamStatus: Math.random() < 0.6 ? Math.floor(Math.random() * 500) + 100 : null,
+    upstreamStatus:
+      Math.random() < 0.6 ? Math.floor(Math.random() * 500) + 100 : null,
     requestBytes: Math.floor(Math.random() * 10_000),
-    responseBytes: Math.random() < 0.7 ? Math.floor(Math.random() * 50_000) : null,
+    responseBytes:
+      Math.random() < 0.7 ? Math.floor(Math.random() * 50_000) : null,
     latencyMs: Math.random() * 1000,
   };
 }
@@ -122,19 +146,39 @@ describe('audit chain property tests', () => {
       const { prisma, orgs, logs } = fakePrisma();
       orgs.set('org-tamper', { lastAuditHash: 'genesis', lastAuditSeq: 0 });
       const audit = new AuditService(prisma);
-      for (let i = 0; i < 20; i++) await audit.record(randomInput('org-tamper'));
+      for (let i = 0; i < 20; i++)
+        await audit.record(randomInput('org-tamper'));
 
       // Pick a victim row and a victim field.
       const victim = logs[Math.floor(Math.random() * logs.length)];
-      const fields = ['method', 'path', 'reasoning', 'reason', 'actionTaken', 'requestBytes', 'responseBytes', 'latencyMs'] as const;
+      const fields = [
+        'method',
+        'path',
+        'reasoning',
+        'reason',
+        'actionTaken',
+        'requestBytes',
+        'responseBytes',
+        'latencyMs',
+      ] as const;
       const field = pick(fields);
       // Mutate it to a different value of the same type.
       switch (field) {
-        case 'method': victim[field] = victim[field] === 'GET' ? 'DELETE' : 'GET'; break;
-        case 'requestBytes': victim[field] = (victim[field] || 0) + 1; break;
-        case 'responseBytes': victim[field] = (victim[field] || 0) + 1; break;
-        case 'latencyMs': victim[field] = victim[field] + 0.001; break;
-        default: victim[field] = 'tampered-' + trial; break;
+        case 'method':
+          victim[field] = victim[field] === 'GET' ? 'DELETE' : 'GET';
+          break;
+        case 'requestBytes':
+          victim[field] = (victim[field] || 0) + 1;
+          break;
+        case 'responseBytes':
+          victim[field] = (victim[field] || 0) + 1;
+          break;
+        case 'latencyMs':
+          victim[field] = victim[field] + 0.001;
+          break;
+        default:
+          victim[field] = 'tampered-' + trial;
+          break;
       }
 
       const v = await audit.verifyChain('org-tamper');

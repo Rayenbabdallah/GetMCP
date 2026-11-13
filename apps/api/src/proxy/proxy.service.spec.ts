@@ -36,9 +36,15 @@ const allowDecision: Decision = { kind: 'allow', trace: [] };
 
 describe('joinUrl', () => {
   it('joins base + path with single slash', () => {
-    expect(joinUrl('https://api.stripe.com', '/v1/charges')).toBe('https://api.stripe.com/v1/charges');
-    expect(joinUrl('https://api.stripe.com/', '/v1/charges')).toBe('https://api.stripe.com/v1/charges');
-    expect(joinUrl('https://api.stripe.com', 'v1/charges')).toBe('https://api.stripe.com/v1/charges');
+    expect(joinUrl('https://api.stripe.com', '/v1/charges')).toBe(
+      'https://api.stripe.com/v1/charges',
+    );
+    expect(joinUrl('https://api.stripe.com/', '/v1/charges')).toBe(
+      'https://api.stripe.com/v1/charges',
+    );
+    expect(joinUrl('https://api.stripe.com', 'v1/charges')).toBe(
+      'https://api.stripe.com/v1/charges',
+    );
   });
 });
 
@@ -52,7 +58,17 @@ describe('ProxyService policy → response shape', () => {
     const block: Decision = {
       kind: 'block',
       reason: 'Policy Violation: nope',
-      rule: { id: 'r', name: 'r', description: 'd', ruleType: 'BLOCK', targetMethod: '*', targetPath: '*', actionConfig: {}, priority: 0, createdAt: new Date() },
+      rule: {
+        id: 'r',
+        name: 'r',
+        description: 'd',
+        ruleType: 'BLOCK',
+        targetMethod: '*',
+        targetPath: '*',
+        actionConfig: {},
+        priority: 0,
+        createdAt: new Date(),
+      },
       trace: [],
     };
     const { service } = makeService({ upstreamBaseUrl: 'https://x' }, block);
@@ -66,7 +82,17 @@ describe('ProxyService policy → response shape', () => {
     const rl: Decision = {
       kind: 'rate_limited',
       retryAfterMs: 750,
-      rule: { id: 'r', name: 'r', description: 'd', ruleType: 'RATE_LIMIT', targetMethod: '*', targetPath: '*', actionConfig: {}, priority: 0, createdAt: new Date() },
+      rule: {
+        id: 'r',
+        name: 'r',
+        description: 'd',
+        ruleType: 'RATE_LIMIT',
+        targetMethod: '*',
+        targetPath: '*',
+        actionConfig: {},
+        priority: 0,
+        createdAt: new Date(),
+      },
       trace: [],
     };
     const { service } = makeService({ upstreamBaseUrl: 'https://x' }, rl);
@@ -82,7 +108,17 @@ describe('ProxyService policy → response shape', () => {
       kind: 'awaiting_approval',
       reason: 'needs approval',
       channel: '#ops',
-      rule: { id: 'r', name: 'r', description: 'd', ruleType: 'MUTATION_APPROVAL', targetMethod: 'POST', targetPath: '/x', actionConfig: {}, priority: 0, createdAt: new Date() },
+      rule: {
+        id: 'r',
+        name: 'r',
+        description: 'd',
+        ruleType: 'MUTATION_APPROVAL',
+        targetMethod: 'POST',
+        targetPath: '/x',
+        actionConfig: {},
+        priority: 0,
+        createdAt: new Date(),
+      },
       trace: [],
     };
     const { service } = makeService({ upstreamBaseUrl: 'https://x' }, aa);
@@ -95,7 +131,11 @@ describe('ProxyService policy → response shape', () => {
 
   it('allow → forwards upstream with status passthrough', async () => {
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: null, upstreamTimeoutMs: 5000 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: null,
+        upstreamTimeoutMs: 5000,
+      },
       allowDecision,
     );
     mockedAxios.request.mockResolvedValue({
@@ -127,10 +167,18 @@ describe('ProxyService.forwardUpstream', () => {
 
   it('strips internal/hop-by-hop headers and never forwards the caller Authorization', async () => {
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: null, upstreamTimeoutMs: 5000 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: null,
+        upstreamTimeoutMs: 5000,
+      },
       allowDecision,
     );
-    mockedAxios.request.mockResolvedValue({ status: 200, headers: {}, data: streamOf('') } as any);
+    mockedAxios.request.mockResolvedValue({
+      status: 200,
+      headers: {},
+      data: streamOf(''),
+    } as any);
 
     await service.interceptAndExecute({
       ...baseReq,
@@ -149,7 +197,10 @@ describe('ProxyService.forwardUpstream', () => {
       },
     });
 
-    const sent = mockedAxios.request.mock.calls[0][0]!.headers as Record<string, string>;
+    const sent = mockedAxios.request.mock.calls[0][0]!.headers as Record<
+      string,
+      string
+    >;
     expect(sent.authorization).toBeUndefined();
     expect(sent['x-agent-id']).toBeUndefined();
     expect(sent['x-agent-source']).toBeUndefined();
@@ -166,20 +217,35 @@ describe('ProxyService.forwardUpstream', () => {
   it('injects the decrypted upstream Authorization header', async () => {
     const stored = encryptSecret('Bearer sk_test_real_upstream_token');
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: stored, upstreamTimeoutMs: 5000 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: stored,
+        upstreamTimeoutMs: 5000,
+      },
       allowDecision,
     );
-    mockedAxios.request.mockResolvedValue({ status: 200, headers: {}, data: streamOf('') } as any);
+    mockedAxios.request.mockResolvedValue({
+      status: 200,
+      headers: {},
+      data: streamOf(''),
+    } as any);
 
     await service.interceptAndExecute(baseReq);
 
-    const sent = mockedAxios.request.mock.calls[0][0]!.headers as Record<string, string>;
+    const sent = mockedAxios.request.mock.calls[0][0]!.headers as Record<
+      string,
+      string
+    >;
     expect(sent['Authorization']).toBe('Bearer sk_test_real_upstream_token');
   });
 
   it('maps timeouts to 504, not 500', async () => {
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: null, upstreamTimeoutMs: 100 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: null,
+        upstreamTimeoutMs: 100,
+      },
       allowDecision,
     );
     const err: any = new Error('timeout of 100ms exceeded');
@@ -194,7 +260,11 @@ describe('ProxyService.forwardUpstream', () => {
 
   it('maps connection errors to 502 Bad Gateway', async () => {
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: null, upstreamTimeoutMs: 5000 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: null,
+        upstreamTimeoutMs: 5000,
+      },
       allowDecision,
     );
     const err: any = new Error('connect ECONNREFUSED');
@@ -209,7 +279,11 @@ describe('ProxyService.forwardUpstream', () => {
 
   it('strips hop-by-hop response headers from the pass-through', async () => {
     const { service } = makeService(
-      { upstreamBaseUrl: 'https://api.example.com', upstreamAuthHeader: null, upstreamTimeoutMs: 5000 },
+      {
+        upstreamBaseUrl: 'https://api.example.com',
+        upstreamAuthHeader: null,
+        upstreamTimeoutMs: 5000,
+      },
       allowDecision,
     );
     mockedAxios.request.mockResolvedValue({

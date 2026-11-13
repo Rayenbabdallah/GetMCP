@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import archiver from 'archiver';
 import type { Response } from 'express';
 import { ClassifierService, ClassifiedEndpoint } from './classifier.service';
 import { buildServerScaffold } from './code-gen';
@@ -35,7 +36,8 @@ export class GeneratorService {
     this.logger.log(`Fetching OpenAPI spec from: ${url}`);
     const response = await axios.get(url, { timeout: 30_000 });
     const spec = response.data;
-    if (!spec || !spec.paths) throw new Error('Invalid OpenAPI spec: missing paths');
+    if (!spec || !spec.paths)
+      throw new Error('Invalid OpenAPI spec: missing paths');
     return spec;
   }
 
@@ -45,7 +47,13 @@ export class GeneratorService {
   ): Promise<GenerationResult> {
     const spec = await this.fetchSpec(req.openapiUrl);
     const result = await this.classifier.classify(organizationId, spec);
-    return this.buildFromClassifications(spec, result.endpoints, result.specHash, result.source, result.cacheHit);
+    return this.buildFromClassifications(
+      spec,
+      result.endpoints,
+      result.specHash,
+      result.source,
+      result.cacheHit,
+    );
   }
 
   buildFromClassifications(
@@ -78,7 +86,8 @@ export class GeneratorService {
           externalCount++;
         }
       }
-      if (Object.keys(safeMethods).length > 0) externalMcp.paths[path] = safeMethods;
+      if (Object.keys(safeMethods).length > 0)
+        externalMcp.paths[path] = safeMethods;
     }
 
     internalMcp.info.title = `${spec.info?.title || 'API'} - Internal Agent Mode (God Mode)`;
@@ -95,12 +104,21 @@ export class GeneratorService {
     };
   }
 
-  async exportInfrastructureZip(organizationId: string, openapiUrl: string, res: Response) {
+  async exportInfrastructureZip(
+    organizationId: string,
+    openapiUrl: string,
+    res: Response,
+  ) {
     const spec = await this.fetchSpec(openapiUrl);
     const cls = await this.classifier.classify(organizationId, spec);
-    const generated = this.buildFromClassifications(spec, cls.endpoints, cls.specHash, cls.source, cls.cacheHit);
+    const generated = this.buildFromClassifications(
+      spec,
+      cls.endpoints,
+      cls.specHash,
+      cls.source,
+      cls.cacheHit,
+    );
 
-    const archiver = require('archiver');
     const archive = archiver('zip', { zlib: { level: 9 } });
     res.set({
       'Content-Type': 'application/zip',
@@ -108,10 +126,20 @@ export class GeneratorService {
     });
     archive.pipe(res);
 
-    const internal = buildServerScaffold('internal-mcp-server', generated.internalMcp, true);
-    const external = buildServerScaffold('external-mcp-server', generated.externalMcp, false);
-    for (const f of internal.files) archive.append(f.content, { name: `internal-mcp/${f.path}` });
-    for (const f of external.files) archive.append(f.content, { name: `external-mcp/${f.path}` });
+    const internal = buildServerScaffold(
+      'internal-mcp-server',
+      generated.internalMcp,
+      true,
+    );
+    const external = buildServerScaffold(
+      'external-mcp-server',
+      generated.externalMcp,
+      false,
+    );
+    for (const f of internal.files)
+      archive.append(f.content, { name: `internal-mcp/${f.path}` });
+    for (const f of external.files)
+      archive.append(f.content, { name: `external-mcp/${f.path}` });
 
     archive.append(this.dockerCompose(), { name: 'docker-compose.yml' });
     archive.append(this.rootReadme(generated), { name: 'README.md' });

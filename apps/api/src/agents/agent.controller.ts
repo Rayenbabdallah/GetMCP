@@ -60,7 +60,10 @@ export class AgentController {
     if (body.tenantScope !== undefined) data.tenantScope = body.tenantScope;
     if (body.enabled !== undefined) data.enabled = body.enabled;
 
-    const updated = await this.prisma.agentIdentity.update({ where: { id }, data });
+    const updated = await this.prisma.agentIdentity.update({
+      where: { id },
+      data,
+    });
     this.agents.invalidate(ctx.organizationId, id);
     return updated;
   }

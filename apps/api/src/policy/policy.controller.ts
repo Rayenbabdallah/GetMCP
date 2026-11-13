@@ -64,10 +64,22 @@ export class PolicyController {
     if (!existing) throw new NotFoundException();
 
     const data: Record<string, any> = {};
-    for (const k of ['name', 'description', 'targetMethod', 'targetPath', 'action', 'actionConfig', 'priority', 'isActive'] as const) {
+    for (const k of [
+      'name',
+      'description',
+      'targetMethod',
+      'targetPath',
+      'action',
+      'actionConfig',
+      'priority',
+      'isActive',
+    ] as const) {
       if (body[k] !== undefined) data[k] = body[k];
     }
-    const updated = await this.prisma.policyRule.update({ where: { id }, data });
+    const updated = await this.prisma.policyRule.update({
+      where: { id },
+      data,
+    });
     this.policy.invalidate(org.organizationId);
     return updated;
   }
@@ -107,7 +119,9 @@ export class PolicyController {
       ...(decision.kind === 'rate_limited'
         ? { rule: decision.rule, retryAfterMs: decision.retryAfterMs }
         : {}),
-      ...(decision.kind === 'awaiting_approval' ? { channel: decision.channel } : {}),
+      ...(decision.kind === 'awaiting_approval'
+        ? { channel: decision.channel }
+        : {}),
       trace: decision.trace,
       note: 'simulate consumes rate-limit tokens',
     };

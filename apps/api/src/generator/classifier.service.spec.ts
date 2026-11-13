@@ -10,7 +10,11 @@ function fakePrisma() {
   const prisma: any = {
     endpointClassification: {
       findMany: async ({ where }: any) =>
-        rows.filter((r) => r.organizationId === where.organizationId && r.specHash === where.specHash),
+        rows.filter(
+          (r) =>
+            r.organizationId === where.organizationId &&
+            r.specHash === where.specHash,
+        ),
       findFirst: async ({ where }: any) =>
         rows.find(
           (r) =>
@@ -32,7 +36,11 @@ function fakePrisma() {
           Object.assign(existing, update);
           return existing;
         }
-        const row = { id: `c-${nextId++}`, ...create, overrideExposeExternally: null };
+        const row = {
+          id: `c-${nextId++}`,
+          ...create,
+          overrideExposeExternally: null,
+        };
         rows.push(row);
         return row;
       },
@@ -72,13 +80,19 @@ describe('ClassifierService — heuristic path (no API key)', () => {
     expect(result.cacheHit).toBe(false);
     expect(result.source).toBe('heuristic');
     expect(result.endpoints).toHaveLength(3);
-    expect(result.endpoints.every((e) => e.classifierSource === 'heuristic')).toBe(true);
+    expect(
+      result.endpoints.every((e) => e.classifierSource === 'heuristic'),
+    ).toBe(true);
     expect(rows).toHaveLength(3);
 
-    const adminDelete = result.endpoints.find((e) => e.path === '/admin/users')!;
+    const adminDelete = result.endpoints.find(
+      (e) => e.path === '/admin/users',
+    )!;
     expect(adminDelete.exposeExternally).toBe(false);
 
-    const tenantGet = result.endpoints.find((e) => e.path === '/v1/customers/{id}')!;
+    const tenantGet = result.endpoints.find(
+      (e) => e.path === '/v1/customers/{id}',
+    )!;
     expect(tenantGet.exposeExternally).toBe(true);
   });
 
@@ -163,9 +177,36 @@ describe('ClassifierService — LLM path', () => {
           {
             text: JSON.stringify({
               endpoints: [
-                { path: '/v1/charges', method: 'get', dataSensitivity: 30, mutationImpact: 0, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'read-only tenant-scoped' },
-                { path: '/admin/users', method: 'delete', dataSensitivity: 95, mutationImpact: 95, hasTenantScope: false, reversible: false, exposeExternally: false, reasoning: 'admin destructive' },
-                { path: '/v1/customers/{id}', method: 'get', dataSensitivity: 40, mutationImpact: 0, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'tenant-scoped read' },
+                {
+                  path: '/v1/charges',
+                  method: 'get',
+                  dataSensitivity: 30,
+                  mutationImpact: 0,
+                  hasTenantScope: true,
+                  reversible: true,
+                  exposeExternally: true,
+                  reasoning: 'read-only tenant-scoped',
+                },
+                {
+                  path: '/admin/users',
+                  method: 'delete',
+                  dataSensitivity: 95,
+                  mutationImpact: 95,
+                  hasTenantScope: false,
+                  reversible: false,
+                  exposeExternally: false,
+                  reasoning: 'admin destructive',
+                },
+                {
+                  path: '/v1/customers/{id}',
+                  method: 'get',
+                  dataSensitivity: 40,
+                  mutationImpact: 0,
+                  hasTenantScope: true,
+                  reversible: true,
+                  exposeExternally: true,
+                  reasoning: 'tenant-scoped read',
+                },
               ],
             }),
           },
@@ -175,7 +216,9 @@ describe('ClassifierService — LLM path', () => {
 
     const result = await svc.classify('org-A', sampleSpec);
     expect(result.source).toBe('llm');
-    expect(result.endpoints.every((e) => e.classifierSource === 'llm')).toBe(true);
+    expect(result.endpoints.every((e) => e.classifierSource === 'llm')).toBe(
+      true,
+    );
     const charges = result.endpoints.find((e) => e.path === '/v1/charges')!;
     expect(charges.dataSensitivity).toBe(30);
     expect(charges.exposeExternally).toBe(true);
@@ -192,9 +235,36 @@ describe('ClassifierService — LLM path', () => {
               '```json\n' +
               JSON.stringify({
                 endpoints: [
-                  { path: '/v1/charges', method: 'get', dataSensitivity: 0, mutationImpact: 0, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'ok' },
-                  { path: '/admin/users', method: 'delete', dataSensitivity: 99, mutationImpact: 99, hasTenantScope: false, reversible: false, exposeExternally: false, reasoning: 'no' },
-                  { path: '/v1/customers/{id}', method: 'get', dataSensitivity: 0, mutationImpact: 0, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'ok' },
+                  {
+                    path: '/v1/charges',
+                    method: 'get',
+                    dataSensitivity: 0,
+                    mutationImpact: 0,
+                    hasTenantScope: true,
+                    reversible: true,
+                    exposeExternally: true,
+                    reasoning: 'ok',
+                  },
+                  {
+                    path: '/admin/users',
+                    method: 'delete',
+                    dataSensitivity: 99,
+                    mutationImpact: 99,
+                    hasTenantScope: false,
+                    reversible: false,
+                    exposeExternally: false,
+                    reasoning: 'no',
+                  },
+                  {
+                    path: '/v1/customers/{id}',
+                    method: 'get',
+                    dataSensitivity: 0,
+                    mutationImpact: 0,
+                    hasTenantScope: true,
+                    reversible: true,
+                    exposeExternally: true,
+                    reasoning: 'ok',
+                  },
                 ],
               }) +
               '\n```',
@@ -211,7 +281,9 @@ describe('ClassifierService — LLM path', () => {
     const svc = new ClassifierService(prisma);
     mockedAxios.post.mockRejectedValue(new Error('Anthropic 503'));
     const result = await svc.classify('org-A', sampleSpec);
-    expect(result.endpoints.every((e) => e.classifierSource === 'heuristic')).toBe(true);
+    expect(
+      result.endpoints.every((e) => e.classifierSource === 'heuristic'),
+    ).toBe(true);
   });
 
   it('clamps out-of-range scores from the model', async () => {
@@ -223,9 +295,36 @@ describe('ClassifierService — LLM path', () => {
           {
             text: JSON.stringify({
               endpoints: [
-                { path: '/v1/charges', method: 'get', dataSensitivity: 999, mutationImpact: -50, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'x' },
-                { path: '/admin/users', method: 'delete', dataSensitivity: 100, mutationImpact: 100, hasTenantScope: false, reversible: false, exposeExternally: false, reasoning: 'x' },
-                { path: '/v1/customers/{id}', method: 'get', dataSensitivity: 50, mutationImpact: 0, hasTenantScope: true, reversible: true, exposeExternally: true, reasoning: 'x' },
+                {
+                  path: '/v1/charges',
+                  method: 'get',
+                  dataSensitivity: 999,
+                  mutationImpact: -50,
+                  hasTenantScope: true,
+                  reversible: true,
+                  exposeExternally: true,
+                  reasoning: 'x',
+                },
+                {
+                  path: '/admin/users',
+                  method: 'delete',
+                  dataSensitivity: 100,
+                  mutationImpact: 100,
+                  hasTenantScope: false,
+                  reversible: false,
+                  exposeExternally: false,
+                  reasoning: 'x',
+                },
+                {
+                  path: '/v1/customers/{id}',
+                  method: 'get',
+                  dataSensitivity: 50,
+                  mutationImpact: 0,
+                  hasTenantScope: true,
+                  reversible: true,
+                  exposeExternally: true,
+                  reasoning: 'x',
+                },
               ],
             }),
           },

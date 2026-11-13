@@ -15,7 +15,8 @@ interface MethodInfo {
 }
 
 export function specHash(spec: any): string {
-  if (!spec || typeof spec !== 'object') throw new Error('spec is not an object');
+  if (!spec || typeof spec !== 'object')
+    throw new Error('spec is not an object');
 
   const paths = spec.paths ?? {};
   const normalized: Array<[string, MethodInfo[]]> = [];
@@ -62,7 +63,11 @@ function normalizeRequestBody(rb: any): any {
 // scoped to this file to avoid coupling.
 function canonical(value: unknown): string {
   if (value === null || value === undefined) return 'null';
-  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+  if (
+    typeof value === 'number' ||
+    typeof value === 'string' ||
+    typeof value === 'boolean'
+  ) {
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
@@ -70,7 +75,9 @@ function canonical(value: unknown): string {
     const keys = Object.keys(value as Record<string, unknown>).sort();
     return (
       '{' +
-      keys.map((k) => JSON.stringify(k) + ':' + canonical((value as any)[k])).join(',') +
+      keys
+        .map((k) => JSON.stringify(k) + ':' + canonical((value as any)[k]))
+        .join(',') +
       '}'
     );
   }

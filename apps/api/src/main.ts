@@ -4,10 +4,14 @@ import { Logger } from 'nestjs-pino';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
+import * as express from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false, bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    bufferLogs: true,
+  });
   app.useLogger(app.get(Logger));
   // Drains in-flight requests + closes Prisma + stops sweepers cleanly on SIGINT/SIGTERM.
   app.enableShutdownHooks();
@@ -37,10 +41,10 @@ async function bootstrap() {
   });
 
   const limit = process.env.JSON_BODY_LIMIT || '1mb';
-  const express = require('express');
 
   const rawBodySaver = (req: any, _res: any, buf: Buffer, encoding: string) => {
-    if (buf && buf.length) req.rawBody = buf.toString((encoding as BufferEncoding) || 'utf8');
+    if (buf && buf.length)
+      req.rawBody = buf.toString((encoding as BufferEncoding) || 'utf8');
   };
   app.use(
     '/slack/interactions',
@@ -62,7 +66,10 @@ async function bootstrap() {
   // Disabled by default in production — set ENABLE_DOCS=true to expose.
   // The docs route is unauthenticated; if exposed externally, gate at the
   // ingress (auth header, IP allowlist, or a separate hostname).
-  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_DOCS === 'true') {
+  if (
+    process.env.NODE_ENV !== 'production' ||
+    process.env.ENABLE_DOCS === 'true'
+  ) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('GetMCP API')
       .setDescription(
@@ -83,6 +90,10 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
-  app.get(Logger).log(`API listening on :${port} (CORS: ${origins.length ? origins.join(', ') : 'disabled'})`);
+  app
+    .get(Logger)
+    .log(
+      `API listening on :${port} (CORS: ${origins.length ? origins.join(', ') : 'disabled'})`,
+    );
 }
-bootstrap();
+void bootstrap();

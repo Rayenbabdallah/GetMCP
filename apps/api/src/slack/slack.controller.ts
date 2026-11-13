@@ -1,4 +1,11 @@
-import { Controller, Post, Req, Res, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Req,
+  Res,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { PrismaService } from '../prisma.service';
@@ -24,10 +31,13 @@ export class SlackController {
   async handle(@Req() req: Request, @Res() res: Response) {
     const rawBody: string | undefined = (req as any).rawBody;
     if (!rawBody) {
-      throw new BadRequestException('raw body unavailable; check raw-body middleware');
+      throw new BadRequestException(
+        'raw body unavailable; check raw-body middleware',
+      );
     }
 
-    const timestamp = req.headers['x-slack-request-timestamp'] as string | undefined;
+    const timestamp = req.headers['x-slack-request-timestamp'] as
+      string | undefined;
     const signature = req.headers['x-slack-signature'] as string | undefined;
 
     const params = new URLSearchParams(rawBody);
@@ -62,7 +72,9 @@ export class SlackController {
       select: { slackSigningSecret: true, slackBotToken: true },
     });
     if (!org?.slackSigningSecret) {
-      this.logger.error(`Org ${pending.organizationId} has no slackSigningSecret; cannot verify`);
+      this.logger.error(
+        `Org ${pending.organizationId} has no slackSigningSecret; cannot verify`,
+      );
       return res.status(401).send();
     }
     const secret = decryptSecret(org.slackSigningSecret);
@@ -73,15 +85,20 @@ export class SlackController {
 
     const actionId: string = action.action_id;
     const userId: string = payload.user?.id ?? 'unknown';
-    const userName: string = payload.user?.username ?? payload.user?.name ?? 'unknown';
+    const userName: string =
+      payload.user?.username ?? payload.user?.name ?? 'unknown';
     const channel = pending.channel ?? payload.channel?.id ?? '';
 
     // Justification comes from the plain_text_input block on the card (added in v0.2 Day 2).
     // Slack puts it under payload.state.values[block_id][action_id].value.
     const justification: string | undefined =
-      payload?.state?.values?.['getmcp_justification_block']?.['getmcp_justification']?.value;
+      payload?.state?.values?.['getmcp_justification_block']?.[
+        'getmcp_justification'
+      ]?.value;
 
-    const botToken = org.slackBotToken ? decryptSecret(org.slackBotToken) : null;
+    const botToken = org.slackBotToken
+      ? decryptSecret(org.slackBotToken)
+      : null;
 
     if (actionId === 'getmcp_approve') {
       const result = await this.approvals.approveWithQuorum({
@@ -95,24 +112,42 @@ export class SlackController {
       // explicit chat.postEphemeral instead.
       if (botToken && channel) {
         if (result.kind === 'rejected_missing_justification') {
-          await this.slack.postEphemeral(botToken, channel, userId,
-            ':warning: This rule requires a justification. Type a one-line reason in the field before clicking Approve.');
+          await this.slack.postEphemeral(
+            botToken,
+            channel,
+            userId,
+            ':warning: This rule requires a justification. Type a one-line reason in the field before clicking Approve.',
+          );
         } else if (result.kind === 'already_voted') {
-          await this.slack.postEphemeral(botToken, channel, userId,
-            `:white_check_mark: Your vote was already recorded (${result.have} of ${result.need} approvers).`);
+          await this.slack.postEphemeral(
+            botToken,
+            channel,
+            userId,
+            `:white_check_mark: Your vote was already recorded (${result.have} of ${result.need} approvers).`,
+          );
         } else if (result.kind === 'pending_quorum') {
-          await this.slack.postEphemeral(botToken, channel, userId,
-            `:hourglass: Vote recorded (${result.have} of ${result.need} approvers). Waiting for the rest.`);
+          await this.slack.postEphemeral(
+            botToken,
+            channel,
+            userId,
+            `:hourglass: Vote recorded (${result.have} of ${result.need} approvers). Waiting for the rest.`,
+          );
         }
       }
       return res.status(200).json({ ok: true, kind: result.kind });
     }
     if (actionId === 'getmcp_deny') {
       const result = await this.approvals.deny(
-        { pendingId, approverSlackUserId: userId, approverSlackUserName: userName },
+        {
+          pendingId,
+          approverSlackUserId: userId,
+          approverSlackUserName: userName,
+        },
         justification,
       );
-      return res.status(200).json({ ok: true, decision: result?.status ?? 'NOOP' });
+      return res
+        .status(200)
+        .json({ ok: true, decision: result?.status ?? 'NOOP' });
     }
 
     this.logger.warn(`Unknown action_id ${actionId}`);

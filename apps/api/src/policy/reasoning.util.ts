@@ -33,8 +33,11 @@ export function isValidReasoning(text: string | null | undefined): boolean {
   return true;
 }
 
-export function reasoningRejectionReason(text: string | null | undefined): string {
+export function reasoningRejectionReason(
+  text: string | null | undefined,
+): string {
   if (!text || !text.trim()) return 'reasoning is empty';
-  if (text.trim().length < MIN_LENGTH) return `reasoning must be at least ${MIN_LENGTH} chars`;
+  if (text.trim().length < MIN_LENGTH)
+    return `reasoning must be at least ${MIN_LENGTH} chars`;
   return 'reasoning is a generic placeholder';
 }
