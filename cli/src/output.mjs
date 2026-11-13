@@ -73,7 +73,7 @@ export function slugify(title) {
   );
 }
 
-export async function writeServer(r, { outDir, baseUrl, source, force }) {
+export async function writeServer(r, { outDir, baseUrl, auth, source, force }) {
   const dir = resolve(outDir);
   if (existsSync(dir)) {
     const entries = await readdir(dir);
@@ -88,6 +88,7 @@ export async function writeServer(r, { outDir, baseUrl, source, force }) {
     name,
     version: '0.0.1',
     baseUrl,
+    auth: { kind: auth.kind, ...(auth.name ? { name: auth.name } : {}) },
     generatedBy: 'getmcp',
     source,
     tools: r.tools.map(({ name, description, inputSchema, annotations, route }) => ({ name, description, inputSchema, annotations, route })),
@@ -111,12 +112,20 @@ export async function writeServer(r, { outDir, baseUrl, source, force }) {
       2,
     ) + '\n',
   );
-  await writeFile(join(dir, 'README.md'), readme(r, name, dir, baseUrl));
+  await writeFile(join(dir, 'README.md'), readme(r, name, dir, baseUrl, auth));
   await writeFile(join(dir, 'REPORT.md'), reportMarkdown(r));
   return { dir, name };
 }
 
-function readme(r, name, dir, baseUrl) {
+/** One line telling the user what API_KEY should hold for this API. */
+export function describeAuth(auth) {
+  if (auth.kind === 'header') return 'sent as the ' + auth.name + ' header';
+  if (auth.kind === 'query') return 'sent as the ' + auth.name + ' query parameter';
+  if (auth.kind === 'basic') return 'sent as HTTP Basic auth (user:password, or just the key if the API takes it as the username)';
+  return 'sent as Authorization: Bearer' + (auth.declared ? '' : ' (the spec declares no auth scheme, so this is a guess)');
+}
+
+function readme(r, name, dir, baseUrl, auth) {
   const serverPath = join(dir, 'server.mjs').replace(/\\/g, '/');
   return `# ${name}
 
@@ -136,7 +145,7 @@ Then add it to your MCP client.
 **Claude Code**
 
 \`\`\`bash
-claude mcp add ${name} --env API_AUTH_HEADER="Bearer YOUR_TOKEN" -- node ${serverPath}
+claude mcp add ${name} --env API_KEY=YOUR_KEY -- node ${serverPath}
 \`\`\`
 
 **Claude Desktop, Cursor, and other clients** (\`mcpServers\` config)
@@ -147,7 +156,7 @@ claude mcp add ${name} --env API_AUTH_HEADER="Bearer YOUR_TOKEN" -- node ${serve
     "${name}": {
       "command": "node",
       "args": ["${serverPath}"],
-      "env": { "API_AUTH_HEADER": "Bearer YOUR_TOKEN" }
+      "env": { "API_KEY": "YOUR_KEY" }
     }
   }
 }
@@ -157,7 +166,8 @@ claude mcp add ${name} --env API_AUTH_HEADER="Bearer YOUR_TOKEN" -- node ${serve
 
 | Variable | What it does |
 |---|---|
-| \`API_AUTH_HEADER\` | Value of the \`Authorization\` header sent upstream. |
+| \`API_KEY\` | Your credential, ${describeAuth(auth)}. Leave unset for public APIs. |
+| \`API_AUTH_HEADER\` | Full \`Authorization\` header value, to override how the key is sent. |
 | \`API_HEADERS\` | Extra headers as JSON. |
 | \`API_BASE_URL\` | Override the base URL (${baseUrl ? `spec says \`${baseUrl}\`` : 'the spec did not declare one, so this is required'}). |
 | \`GETMCP_READ_ONLY\` | Set to \`1\` to hide and refuse every write tool. |

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze, classify, compactSchema, listOperations } from '../src/analyze.mjs';
+import { authOf, baseUrlOf, stem } from '../src/spec.mjs';
 
 const spec = {
   openapi: '3.0.0',
@@ -90,4 +91,30 @@ test('compactSchema terminates on recursive schemas', () => {
   const out = compactSchema(spec, { $ref: '#/components/schemas/Node' }, 5);
   assert.equal(out.type, 'object');
   assert.deepEqual(out.properties.child, {});
+});
+
+test('authOf picks the simplest declared scheme', () => {
+  assert.deepEqual(authOf({}), { kind: 'bearer', declared: false });
+  assert.deepEqual(authOf({ components: { securitySchemes: { k: { type: 'apiKey', in: 'header', name: 'X-Api-Key' } } } }), {
+    kind: 'header',
+    name: 'X-Api-Key',
+    declared: true,
+  });
+  // Swagger 2, and a plain bearer scheme beats OAuth when both exist.
+  const both = { securityDefinitions: { o: { type: 'oauth2' }, q: { type: 'apiKey', in: 'query', name: 'key' } } };
+  assert.deepEqual(authOf(both), { kind: 'query', name: 'key', declared: true });
+  // A scheme named in top-level `security` wins over one that is merely defined.
+  const required = { security: [{ b: [] }], components: { securitySchemes: { h: { type: 'http', scheme: 'bearer' }, b: { type: 'http', scheme: 'basic' } } } };
+  assert.equal(authOf(required).kind, 'basic');
+});
+
+test('baseUrlOf handles servers, Swagger 2 hosts and unusable relative URLs', () => {
+  assert.equal(baseUrlOf({ servers: [{ url: 'https://a.test/v1/' }] }, 'spec.json'), 'https://a.test/v1');
+  assert.equal(baseUrlOf({ servers: [{ url: '/v3' }] }, 'https://a.test/openapi.json'), 'https://a.test/v3');
+  assert.equal(baseUrlOf({ servers: [{ url: '/v3' }] }, 'spec.json'), null);
+  assert.equal(baseUrlOf({ host: 'a.test', basePath: '/v2', schemes: ['https'] }, 'spec.json'), 'https://a.test/v2');
+});
+
+test('stem singularises common plurals', () => {
+  assert.deepEqual(['issues', 'repositories', 'branches', 'status', 'access'].map(stem), ['issue', 'repository', 'branch', 'status', 'access']);
 });

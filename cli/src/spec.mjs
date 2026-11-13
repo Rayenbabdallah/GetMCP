@@ -43,13 +43,45 @@ export function baseUrlOf(spec, source) {
     if (!/^https?:\/\//i.test(url) && /^https?:\/\//i.test(source)) {
       url = new URL(url, source).toString();
     }
-    return url.replace(/\/+$/, '');
+    // A relative server URL with no spec URL to resolve it against is unusable.
+    return /^https?:\/\//i.test(url) ? url.replace(/\/+$/, '') : null;
   }
   if (spec.host) {
     const scheme = (spec.schemes ?? ['https']).includes('https') ? 'https' : (spec.schemes?.[0] ?? 'https');
     return `${scheme}://${spec.host}${spec.basePath ?? ''}`.replace(/\/+$/, '');
   }
   return null;
+}
+
+/**
+ * How does this API want its credential? Reads the spec's security schemes and
+ * picks the simplest one, so the generated server can take a single API_KEY.
+ *   bearer → Authorization: Bearer <key>     basic → Authorization: Basic base64(<key>)
+ *   header → <name>: <key>                   query → ?<name>=<key>
+ */
+const AUTH_PREFERENCE = ['bearer', 'header', 'query', 'basic', 'oauth'];
+
+export function authOf(spec) {
+  const schemes = spec.components?.securitySchemes ?? spec.securityDefinitions ?? {};
+  const required = new Set((Array.isArray(spec.security) ? spec.security : []).flatMap((r) => Object.keys(r ?? {})));
+  const found = [];
+  for (const [id, raw] of Object.entries(schemes)) {
+    const s = deref(spec, raw);
+    if (!s || typeof s !== 'object') continue;
+    let auth = null;
+    if (s.type === 'http' && /^bearer$/i.test(s.scheme ?? '')) auth = { kind: 'bearer' };
+    else if ((s.type === 'http' && /^basic$/i.test(s.scheme ?? '')) || s.type === 'basic') auth = { kind: 'basic' };
+    else if (s.type === 'apiKey' && s.in === 'header' && s.name) {
+      auth = /^authorization$/i.test(s.name) ? { kind: 'bearer' } : { kind: 'header', name: s.name };
+    } else if (s.type === 'apiKey' && s.in === 'query' && s.name) auth = { kind: 'query', name: s.name };
+    else if (s.type === 'oauth2' || s.type === 'openIdConnect') auth = { kind: 'bearer', oauth: true };
+    if (!auth) continue;
+    const rank = (required.has(id) ? 0 : 10) + AUTH_PREFERENCE.indexOf(auth.oauth ? 'oauth' : auth.kind);
+    found.push({ auth, rank });
+  }
+  if (!found.length) return { kind: 'bearer', declared: false };
+  found.sort((a, b) => a.rank - b.rank);
+  return { ...found[0].auth, declared: true };
 }
 
 /** Follow local `#/…` references. Anything else is returned untouched. */
@@ -76,7 +108,14 @@ export function words(s) {
     .filter(Boolean);
 }
 
-export const stem = (w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+/** Crude singular form: "repositories" → "repository", "branches" → "branch", "issues" → "issue". */
+export function stem(w) {
+  if (w.length <= 3) return w;
+  if (w.endsWith('ies')) return w.slice(0, -3) + 'y';
+  if (/(ch|sh|x|ss)es$/.test(w)) return w.slice(0, -2);
+  if (w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1);
+  return w;
+}
 
 /** First word in `ws` that is in `set` (plural-insensitive), or undefined. */
 export function findWord(ws, set) {

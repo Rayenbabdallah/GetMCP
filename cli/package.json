@@ -1,12 +1,33 @@
 {
-  "name": "getmcp",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Turn a big OpenAPI spec into a small, agent-ready MCP server — with the dangerous endpoints left out.",
+  "name": "getmcp-cli",
+  "version": "0.1.0",
+  "description": "Turn a big OpenAPI spec into a small, agent-ready MCP server, with the dangerous endpoints left out.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "openapi",
+    "swagger",
+    "ai-agents",
+    "mcp-server",
+    "claude",
+    "cursor",
+    "cli"
+  ],
   "license": "Apache-2.0",
+  "author": "Rayen Babdallah",
+  "homepage": "https://github.com/Rayenbabdallah/GetMCP/tree/main/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rayenbabdallah/GetMCP.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Rayenbabdallah/GetMCP/issues"
+  },
   "type": "module",
   "bin": {
-    "getmcp": "bin/getmcp.mjs"
+    "getmcp": "bin/getmcp.mjs",
+    "getmcp-cli": "bin/getmcp.mjs"
   },
   "files": [
     "bin",
@@ -21,5 +42,8 @@
   },
   "dependencies": {
     "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
   }
 }

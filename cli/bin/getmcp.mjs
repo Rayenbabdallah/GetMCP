@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-import { loadSpec, baseUrlOf } from '../src/spec.mjs';
+import { readFileSync } from 'node:fs';
+import { loadSpec, baseUrlOf, authOf } from '../src/spec.mjs';
 import { analyze, CATEGORIES } from '../src/analyze.mjs';
-import { printReport, writeServer, slugify } from '../src/output.mjs';
+import { printReport, writeServer, slugify, describeAuth } from '../src/output.mjs';
 
 const HELP = `getmcp — turn a big OpenAPI spec into a small, agent-ready MCP server.
 
 Usage
-  getmcp <openapi-url-or-file> [options]
+  npx getmcp-cli <openapi-url-or-file> [options]
 
 Options
   --max <n>          How many tools to keep (default 25)
@@ -18,10 +19,11 @@ Options
   --dry-run          Print the report, write nothing
   --json             Print the report as JSON
   --force            Write into a non-empty directory
+  -v, --version
   -h, --help
 
 Example
-  getmcp https://petstore3.swagger.io/api/v3/openapi.json
+  npx getmcp-cli https://petstore3.swagger.io/api/v3/openapi.json
 `;
 
 function parseArgs(argv) {
@@ -34,6 +36,7 @@ function parseArgs(argv) {
       return argv[++i];
     };
     if (a === '-h' || a === '--help') opts.help = true;
+    else if (a === '-v' || a === '--version') opts.version = true;
     else if (a === '--max') opts.max = Number(next());
     else if (a === '--only') opts.only = list(next());
     else if (a === '--allow') opts.allow = list(next());
@@ -55,6 +58,10 @@ function parseArgs(argv) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.version) {
+    console.log(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+    return;
+  }
   if (opts.help || !opts.source) {
     console.log(HELP);
     process.exit(opts.help ? 0 : 1);
@@ -63,10 +70,11 @@ async function main() {
   const spec = await loadSpec(opts.source);
   const report = analyze(spec, opts);
   const baseUrl = baseUrlOf(spec, opts.source);
+  const auth = authOf(spec);
 
   if (opts.json) {
     const { byCategory: _omit, ...rest } = report;
-    console.log(JSON.stringify({ ...rest, baseUrl }, null, 2));
+    console.log(JSON.stringify({ ...rest, baseUrl, auth }, null, 2));
   } else {
     printReport(report, opts);
   }
@@ -78,13 +86,14 @@ async function main() {
   if (opts.dryRun) return;
 
   const outDir = opts.out ?? `./${slugify(report.title)}-mcp`;
-  const { dir, name } = await writeServer(report, { outDir, baseUrl, source: opts.source, force: opts.force });
+  const { dir, name } = await writeServer(report, { outDir, baseUrl, auth, source: opts.source, force: opts.force });
   const log = opts.json ? console.error : console.log;
   log(`  Wrote ${dir}`);
   log('');
   log('  Next');
   log(`    cd ${outDir} && npm install`);
-  log(`    claude mcp add ${name} --env API_AUTH_HEADER="Bearer YOUR_TOKEN" -- node ${dir.replace(/\\/g, '/')}/server.mjs`);
+  log(`    claude mcp add ${name} --env API_KEY=YOUR_KEY -- node ${dir.replace(/\\/g, '/')}/server.mjs`);
+  log(`    API_KEY is ${describeAuth(auth)}; leave it out for a public API`);
   if (!baseUrl) log('    (the spec declares no server URL — also set API_BASE_URL)');
   log('');
 }
