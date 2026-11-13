@@ -1,31 +1,98 @@
 <div align="center">
   <img src="apps/web/public/getmcp-icon.png" alt="GetMCP" width="96" height="96" />
   <h1>GetMCP</h1>
-  <p><strong>Zero Trust for AI agents.</strong> Generates the MCP servers your customers' agents need, then enforces who can do what — per request, per agent, per tenant.</p>
+  <p><strong>Turn a big OpenAPI spec into a small, agent-ready MCP server, with the dangerous endpoints left out.</strong></p>
   <p>
+    <a href="https://www.npmjs.com/package/getmcp-cli"><img src="https://img.shields.io/npm/v/getmcp-cli.svg" alt="npm" /></a>
+    <a href="https://github.com/Rayenbabdallah/GetMCP/actions/workflows/ci.yml"><img src="https://github.com/Rayenbabdallah/GetMCP/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="Apache 2.0" /></a>
-    <img src="https://img.shields.io/badge/tests-156%20passing-brightgreen.svg" alt="Tests" />
-    <img src="https://img.shields.io/badge/coverage-per--file%20gates-success.svg" alt="Coverage" />
     <img src="https://img.shields.io/badge/node-%3E%3D20-success.svg" alt="Node 20+" />
     <a href="https://github.com/Rayenbabdallah/GetMCP/issues"><img src="https://img.shields.io/github/issues/Rayenbabdallah/GetMCP" alt="Issues" /></a>
   </p>
-  <p>
-    <a href="docs/quickstart.md"><strong>Quickstart →</strong></a> ·
-    <a href="docs/security.md">Threat model</a> ·
-    <a href="docs/operations.md">Operations</a> ·
-    <a href="CHANGELOG.md">Changelog</a>
-  </p>
 </div>
+
+```bash
+npx getmcp-cli https://petstore3.swagger.io/api/v3/openapi.json
+```
+
+No account, no database, no LLM call. It reads the spec, tells you what it kept and what it left out, and writes an MCP server you can plug into Claude Code, Claude Desktop, Cursor, or any other MCP client.
+
+## The problem
+
+Most OpenAPI-to-MCP converters emit one tool per endpoint. On a real API that means hundreds of tools: the agent's context fills up, tool selection gets worse, and `DELETE /repos/{owner}/{repo}` is sitting right there.
+
+Here is GitHub's REST API, 1,280 operations, run through `getmcp-cli` (tool list trimmed):
+
+```text
+GitHub v3 REST API 1.1.4
+  1,280 operations in the spec ≈ 263k tokens of tool definitions if you exposed them all
+
+  Left out — not something to hand an agent
+      176  destructive or irreversible              DELETE /agents/repos/{owner}/{repo}/automatio…
+      129  credentials & secrets                    POST /app/installations/{installation_id}/acc…
+       38  deprecated                               GET /assignments/{assignment_id}
+       28  webhooks (data can be redirected out)    GET /app/hook/config
+        3  admin / internal                         GET /repos/{owner}/{repo}/branches/{branch}/p…
+        2  binary upload                            POST /markdown/raw
+
+  Safe candidates  904 (572 read, 332 write)
+  Curated to       25 tools ≈ 6.3k tokens  98% smaller
+
+    R  repos_get                     GET /repos/{owner}/{repo}
+    W  pulls_create                  POST /repos/{owner}/{repo}/pulls
+    W  issues_create                 POST /repos/{owner}/{repo}/issues
+    R  pulls_list                    GET /repos/{owner}/{repo}/pulls
+    R  search_repos                  GET /search/repositories
+    R  issues_list_for_repo          GET /repos/{owner}/{repo}/issues
+    R  repos_list_branches           GET /repos/{owner}/{repo}/branches
+    …
+```
+
+| Spec | Operations | Left out | Kept | Tool definitions |
+|---|---|---|---|---|
+| GitHub REST | 1,280 | 376 | 25 | ~263k tokens → ~6k |
+| Stripe | 612 | 168 | 25 | ~176k tokens → ~10k |
+| Petstore | 19 | 5 | 14 | ~1.7k tokens → ~1.3k |
+
+Token figures are estimates (characters ÷ 4).
+
+## What it does
+
+1. **Classifies** every operation and drops the ones an agent should not have: destructive or irreversible actions, money movement, admin and internal routes, credentials and secrets, webhooks, deprecated routes, binary uploads.
+2. **Curates** the safe ones down to 25, balanced across resources, with about a third able to write. Steer it with `--only issues,pulls,search`, or keep reads only with `--read-only`.
+3. **Generates** a runnable stdio MCP server, plus a `REPORT.md` listing every tool kept and every operation left out, with the reason.
+
+```bash
+npx getmcp-cli <openapi-url-or-file> --dry-run     # see the report first; writes nothing
+npx getmcp-cli <openapi-url-or-file>               # write ./<api-name>-mcp
+cd <api-name>-mcp && npm install
+claude mcp add <api-name>-mcp --env API_KEY=YOUR_KEY -- node /absolute/path/to/server.mjs
+```
+
+It reads the spec's security scheme, so one `API_KEY` variable covers bearer tokens, custom headers such as `X-Api-Key`, query parameters and HTTP Basic. Works with OpenAPI 3.x and Swagger 2, JSON or YAML.
+
+Full options, how ranking works, and known limits: [`cli/README.md`](cli/README.md).
 
 ---
 
-> **TL;DR.** Point GetMCP at any OpenAPI spec. It generates two runnable MCP servers (Internal "god mode" and External "customer-safe"), then runs in front of them as a policy proxy with a tamper-evident audit log. Self-hosted, Apache 2.0, no telemetry.
+# The GetMCP platform
+
+The CLI gives one developer a safe server in a minute. When agents you don't control start calling your API in production, you need enforcement at runtime: who can call what, human approval for sensitive actions, and a record an auditor will accept. That is the self-hosted platform in this repo.
+
+<p align="center">
+  <a href="docs/quickstart.md"><strong>Platform quickstart →</strong></a> ·
+  <a href="docs/security.md">Threat model</a> ·
+  <a href="docs/operations.md">Operations</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+> **Zero Trust for AI agents.** GetMCP generates two runnable MCP servers from your OpenAPI spec (Internal "god mode" and External "customer-safe"), then runs in front of them as a policy proxy with a tamper-evident audit log. Self-hosted, Apache 2.0, no telemetry.
 
 <p align="center">
   <img src="docs/images/landing-hero.png" alt="GetMCP — Make your API agent-ready, safely. Zero Trust Architecture for AI Agents." width="900" />
 </p>
 
-## What is GetMCP?
+## What the platform is
 
 A **policy proxy + audit log** that sits between AI agents (Claude, ChatGPT, Cursor, your bots) and your existing API.
 
@@ -72,7 +139,7 @@ About 6 months of work for one engineer. GetMCP is one bash command:
 
 Full operator + auditor docs in [`docs/`](docs/). Start with [`docs/quickstart.md`](docs/quickstart.md) — zero to a proxied request in 10 minutes. Live Swagger UI at `/docs` when the API is running in dev or with `ENABLE_DOCS=true`.
 
-## Quick Start (one command)
+## Platform quick start (one command)
 
 ```bash
 git clone https://github.com/Rayenbabdallah/GetMCP
@@ -87,6 +154,7 @@ Defaults: dashboard at `http://localhost:8080`, API at `http://localhost:3000`. 
 ## Testing
 
 - Strategy + claim → test mapping: [`docs/testing.md`](docs/testing.md)
+- CLI: unit tests plus an end-to-end test that generates a server and drives it with the official MCP client (`cd cli && node --test`)
 - Per-file coverage gates on the 12 correctness-critical files (`apps/api/package.json#jest.coverageThreshold`); CI blocks merge on regression
 - Property tests for the audit chain: 200 random inserts verified end-to-end, 50 random tampers all detected at the right `seq`
 - Cross-rule combination tests for the policy engine — priority interactions, source filters, bypass behavior
@@ -127,6 +195,7 @@ pnpm test
 
 ## Architecture overview
 
+- **`cli/`:** The `getmcp-cli` npm package. Standalone and offline; published on its own and kept outside the pnpm workspace.
 - **`apps/api` (NestJS):** The core intelligence engine. It parses OpenAPI specs, generates Two-MCP trust boundaries, and runs the Proxy Interceptor to evaluate real-time agent requests against your policies.
 - **`apps/web` (React/Vite):** The enterprise dashboard for managing policies, generating infrastructure, and viewing audit logs.
 - **`docker-compose.yml`**: Container orchestration for local and beta deployments.
@@ -308,8 +377,8 @@ Schema, hash construction, and integrity guarantees are documented in `docs/audi
 
 Tracked publicly as design-discussion issues — comment if you have a take, PRs welcome:
 
-- [Approval ergonomics — mitigate rubber-stamp risk](https://github.com/Rayenbabdallah/GetMCP/issues/1)
-- [BEHAVIORAL_ANOMALY rule type — close the right-shape-wrong-volume gap](https://github.com/Rayenbabdallah/GetMCP/issues/2)
+- [Approval ergonomics — mitigate rubber-stamp risk](https://github.com/Rayenbabdallah/GetMCP/issues/1) (shipped: quorum and required justification)
+- [BEHAVIORAL_ANOMALY rule type — close the right-shape-wrong-volume gap](https://github.com/Rayenbabdallah/GetMCP/issues/2) (shipped: per-agent baseline scoring)
 - [Policy lifecycle — versioning, drift detection, audit-of-audit](https://github.com/Rayenbabdallah/GetMCP/issues/3)
 - [Signed agent configs — sigstore-style provenance for generator output](https://github.com/Rayenbabdallah/GetMCP/issues/4)
 
