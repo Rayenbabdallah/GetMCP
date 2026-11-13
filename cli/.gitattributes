@@ -1,0 +1,2 @@
+# Published to npm and run on every OS: keep LF so the bin shebang works.
+* text=auto eol=lf

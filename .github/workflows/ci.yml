@@ -32,6 +32,14 @@ jobs:
       # build if any correctness-critical file regresses below its floor.
       - run: pnpm --filter api run test:cov
 
+      # The getmcp CLI lives outside the pnpm workspace (it is published to npm
+      # on its own), so it installs and tests separately.
+      - name: CLI tests
+        working-directory: cli
+        run: |
+          pnpm install --ignore-workspace --frozen-lockfile
+          node --test
+
       # Block merges on high-severity vulnerabilities. Override per-package
       # with pnpm.audit.ignoreCves in package.json if a CVE is non-applicable.
       - name: pnpm audit (high+)

@@ -31,7 +31,7 @@ const DESTRUCTIVE_WORDS = new Set([
   'block', 'ban', 'lock', 'reset', 'rotate', 'terminate', 'wipe', 'erase', 'expire', 'merge', 'force',
 ]);
 const MONEY_WORDS = new Set([
-  'refund', 'payout', 'capture', 'pay', 'charge', 'payment', 'topup', 'withdraw', 'withdrawal', 'debit', 'credit',
+  'refund', 'payout', 'capture', 'charge', 'payment', 'topup', 'withdraw', 'withdrawal', 'debit', 'credit',
 ]);
 const SECRET_PARAMS = new Set([
   'password', 'secret', 'ssn', 'socialsecurity', 'socialsecuritynumber', 'cardnumber', 'creditcard', 'cvc', 'cvv',
@@ -131,7 +131,8 @@ export function classify(spec, o) {
     hit = findWord(action, DESTRUCTIVE_WORDS);
     if (hit) return out('destructive', `"${hit}" action`);
 
-    hit = findWord(context, MONEY_WORDS);
+    // "pay" only counts as an action (/invoices/{id}/pay), not inside a name like apple_pay.
+    hit = findWord(context, MONEY_WORDS) ?? (action.includes('pay') ? 'pay' : undefined);
     if (hit) return out('money', `write to a "${hit}" resource`);
   }
 
@@ -173,7 +174,7 @@ function shapeOf(o) {
  *   - shallowness: /issues beats /repos/x/actions/runs/y/jobs/z/logs
  *   - CRUD shape: list / get / create / update / search over odd one-offs
  */
-export function scoreOperations(candidates, allPaths) {
+export function scoreOperations(candidates, allPaths, mentions = () => 0) {
   const descendants = new Map();
   const unique = [...new Set(allPaths)];
   for (const p of new Set(candidates.map((c) => c.path))) {
@@ -198,11 +199,35 @@ export function scoreOperations(candidates, allPaths) {
       score += shape === 'update' ? 0.4 * hub : hub;
     }
     score -= 1.5 * Math.max(0, segs.length - 2);
+    // A resource the rest of the API keeps talking about is a core concept.
+    const noun = words(segs[segs.length - 1]).map(stem);
+    if (noun.length) score += Math.min(8, 1.2 * Math.log2(1 + Math.min(...noun.map(mentions))));
     if (c.op.summary || c.op.description) score += 0.5;
     if (c.tier === 'read') score += 1;
     if (findWord(pathWords, NOISE_WORDS)) score -= 6;
     return { ...c, shape, score, isSearch };
   });
+}
+
+/**
+ * How often is a resource word mentioned by operations that are *not* about
+ * that resource? "issue" turns up all over GitHub's API; "codespace" only in
+ * its own corner. Returns a lookup from stemmed word → number of such operations.
+ */
+const GENERIC_NOUNS = new Set([
+  'request', 'response', 'list', 'value', 'permission', 'configuration', 'config', 'setting', 'status', 'type', 'field',
+  'item', 'result', 'data', 'info', 'detail', 'option', 'object', 'name', 'id', 'number', 'access', 'public', 'private',
+  'default', 'page', 'action', 'run', 'check', 'code', 'collaborator', 'member', 'session', 'link', 'line',
+]);
+
+export function mentionCounter(operations) {
+  const counts = new Map();
+  for (const o of operations) {
+    const own = new Set(staticSegments(o.path).flatMap(words).map(stem));
+    const text = new Set([...words(plain(o.op.summary)), ...words(plain(o.op.description))].map(stem));
+    for (const w of text) if (!own.has(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+  }
+  return (word) => (GENERIC_NOUNS.has(word) ? 0 : (counts.get(word) ?? 0));
 }
 
 /**
@@ -415,7 +440,7 @@ export function analyze(spec, { max = 25, readOnly = false, all = false, only = 
   }
 
   const eligible = candidates.filter((c) => (!readOnly || c.tier === 'read') && matchesOnly(c, only));
-  const scored = scoreOperations(eligible, operations.map((o) => o.path));
+  const scored = scoreOperations(eligible, operations.map((o) => o.path), mentionCounter(operations));
   // With --only, balance across the user's terms instead of across the API's own groups.
   const curateOpts = only.length
     ? { group: (c) => only.find((term) => matchesOnly(c, [term])), cap: Math.ceil(max / only.length) + 1 }
