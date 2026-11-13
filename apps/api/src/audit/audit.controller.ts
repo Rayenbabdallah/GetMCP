@@ -1,4 +1,10 @@
-import { Controller, Get, Query, Res, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Res,
+  BadRequestException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
 import { CurrentOrg, AuthContext } from '../auth/current-org.decorator';
@@ -24,17 +30,22 @@ export class AuditController {
     @Query('cursor') cursor?: string,
     @Query('limit') limitStr?: string,
   ) {
-    const limit = Math.min(Math.max(parseInt(limitStr || '100', 10) || 100, 1), 1000);
+    const limit = Math.min(
+      Math.max(parseInt(limitStr || '100', 10) || 100, 1),
+      1000,
+    );
 
     const where: any = { organizationId: ctx.organizationId };
     if (from) {
       const d = new Date(from);
-      if (Number.isNaN(d.getTime())) throw new BadRequestException('invalid `from`');
+      if (Number.isNaN(d.getTime()))
+        throw new BadRequestException('invalid `from`');
       where.timestamp = { ...(where.timestamp || {}), gte: d };
     }
     if (to) {
       const d = new Date(to);
-      if (Number.isNaN(d.getTime())) throw new BadRequestException('invalid `to`');
+      if (Number.isNaN(d.getTime()))
+        throw new BadRequestException('invalid `to`');
       where.timestamp = { ...(where.timestamp || {}), lte: d };
     }
     if (path) where.path = { contains: path };
@@ -70,8 +81,14 @@ export class AuditController {
     @Query('windowHours') windowHoursStr?: string,
     @Query('limit') limitStr?: string,
   ) {
-    const windowHours = Math.min(Math.max(parseInt(windowHoursStr || '24', 10) || 24, 1), 168);
-    const limit = Math.min(Math.max(parseInt(limitStr || '500', 10) || 500, 1), 2000);
+    const windowHours = Math.min(
+      Math.max(parseInt(windowHoursStr || '24', 10) || 24, 1),
+      168,
+    );
+    const limit = Math.min(
+      Math.max(parseInt(limitStr || '500', 10) || 500, 1),
+      2000,
+    );
     const since = new Date(Date.now() - windowHours * 60 * 60 * 1000);
 
     const rows = await this.prisma.auditLog.findMany({

@@ -1,6 +1,22 @@
-import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
-const METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'] as const;
+const METHODS = [
+  'get',
+  'post',
+  'put',
+  'patch',
+  'delete',
+  'options',
+  'head',
+] as const;
 
 export class ClassifyDto {
   @IsUrl({ require_tld: false, protocols: ['http', 'https'] })
@@ -30,7 +46,7 @@ export class OverrideDto {
 
   @IsString()
   @IsIn(METHODS as unknown as string[])
-  method!: typeof METHODS[number];
+  method!: (typeof METHODS)[number];
 
   @ValidateIf((_, v) => v !== null)
   @IsBoolean()

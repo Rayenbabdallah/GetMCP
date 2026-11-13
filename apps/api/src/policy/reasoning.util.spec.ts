@@ -20,8 +20,12 @@ describe('isValidReasoning', () => {
   });
 
   it('accepts a real reason', () => {
-    expect(isValidReasoning('Customer #1234 requested a refund per case CS-987')).toBe(true);
-    expect(isValidReasoning('Investigating elevated 5xx in checkout')).toBe(true);
+    expect(
+      isValidReasoning('Customer #1234 requested a refund per case CS-987'),
+    ).toBe(true);
+    expect(isValidReasoning('Investigating elevated 5xx in checkout')).toBe(
+      true,
+    );
   });
 });
 

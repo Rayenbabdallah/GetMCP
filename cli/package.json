@@ -1,0 +1,25 @@
+{
+  "name": "getmcp",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Turn a big OpenAPI spec into a small, agent-ready MCP server — with the dangerous endpoints left out.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "getmcp": "bin/getmcp.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "template"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  }
+}

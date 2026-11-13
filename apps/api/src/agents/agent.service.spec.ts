@@ -2,7 +2,11 @@ import { AgentService } from './agent.service';
 
 function fakePrisma(rows: any[]) {
   const findFirst = jest.fn().mockImplementation(async ({ where }: any) => {
-    return rows.find((r) => r.id === where.id && r.organizationId === where.organizationId) ?? null;
+    return (
+      rows.find(
+        (r) => r.id === where.id && r.organizationId === where.organizationId,
+      ) ?? null
+    );
   });
   const update = jest.fn().mockResolvedValue(undefined);
   return {
@@ -26,7 +30,14 @@ describe('AgentService.resolve', () => {
 
   it('refuses to resolve an agent of org-B when called with org-A scope', async () => {
     const { prisma } = fakePrisma([
-      { id: 'agent-1', organizationId: 'org-B', source: 'internal_mcp', tenantScope: null, enabled: true, revokedAt: null },
+      {
+        id: 'agent-1',
+        organizationId: 'org-B',
+        source: 'internal_mcp',
+        tenantScope: null,
+        enabled: true,
+        revokedAt: null,
+      },
     ]);
     const svc = new AgentService(prisma);
     expect(await svc.resolve('org-A', 'agent-1')).toBeNull();
@@ -34,7 +45,14 @@ describe('AgentService.resolve', () => {
 
   it('caches a positive resolve and skips the second DB call', async () => {
     const { prisma, findFirst } = fakePrisma([
-      { id: 'agent-1', organizationId: 'org-A', source: 'internal_mcp', tenantScope: null, enabled: true, revokedAt: null },
+      {
+        id: 'agent-1',
+        organizationId: 'org-A',
+        source: 'internal_mcp',
+        tenantScope: null,
+        enabled: true,
+        revokedAt: null,
+      },
     ]);
     const svc = new AgentService(prisma);
 
@@ -47,7 +65,14 @@ describe('AgentService.resolve', () => {
 
   it('invalidate() forces a fresh DB lookup on the next resolve', async () => {
     const rows: any[] = [
-      { id: 'agent-1', organizationId: 'org-A', source: 'internal_mcp', tenantScope: null, enabled: true, revokedAt: null },
+      {
+        id: 'agent-1',
+        organizationId: 'org-A',
+        source: 'internal_mcp',
+        tenantScope: null,
+        enabled: true,
+        revokedAt: null,
+      },
     ];
     const { prisma, findFirst } = fakePrisma(rows);
     const svc = new AgentService(prisma);
@@ -69,7 +94,14 @@ describe('AgentService.resolve', () => {
   it('cache TTL: positive entry expires within ~5s and triggers a refresh', async () => {
     jest.useFakeTimers();
     const { prisma, findFirst } = fakePrisma([
-      { id: 'agent-1', organizationId: 'org-A', source: 'internal_mcp', tenantScope: null, enabled: true, revokedAt: null },
+      {
+        id: 'agent-1',
+        organizationId: 'org-A',
+        source: 'internal_mcp',
+        tenantScope: null,
+        enabled: true,
+        revokedAt: null,
+      },
     ]);
     const svc = new AgentService(prisma);
 
@@ -88,7 +120,14 @@ describe('AgentService.resolve', () => {
 
   it('returns the agent even when disabled or revoked — caller decides what to do', async () => {
     const { prisma } = fakePrisma([
-      { id: 'agent-1', organizationId: 'org-A', source: 'internal_mcp', tenantScope: null, enabled: false, revokedAt: new Date() },
+      {
+        id: 'agent-1',
+        organizationId: 'org-A',
+        source: 'internal_mcp',
+        tenantScope: null,
+        enabled: false,
+        revokedAt: new Date(),
+      },
     ]);
     const svc = new AgentService(prisma);
     const a = await svc.resolve('org-A', 'agent-1');

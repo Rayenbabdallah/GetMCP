@@ -22,39 +22,63 @@ describe('verifySlackSignature', () => {
     const ts = now;
     const sig = signed('payload=%7B%22type%22%3A%22block_actions%22%7D', ts);
     const tampered = 'payload=%7B%22type%22%3A%22evil%22%7D';
-    expect(verifySlackSignature(tampered, String(ts), sig, SECRET, now)).toBe(false);
+    expect(verifySlackSignature(tampered, String(ts), sig, SECRET, now)).toBe(
+      false,
+    );
   });
 
   it('rejects a wrong signing secret', () => {
     const body = 'x=y';
     const sig = signed(body, now);
-    expect(verifySlackSignature(body, String(now), sig, 'different-secret', now)).toBe(false);
+    expect(
+      verifySlackSignature(body, String(now), sig, 'different-secret', now),
+    ).toBe(false);
   });
 
   it('rejects timestamps outside the 5-minute window', () => {
     const body = 'x=y';
     const oldTs = now - 60 * 6;
     const sig = signed(body, oldTs);
-    expect(verifySlackSignature(body, String(oldTs), sig, SECRET, now)).toBe(false);
+    expect(verifySlackSignature(body, String(oldTs), sig, SECRET, now)).toBe(
+      false,
+    );
 
     const futureTs = now + 60 * 6;
     const sig2 = signed(body, futureTs);
-    expect(verifySlackSignature(body, String(futureTs), sig2, SECRET, now)).toBe(false);
+    expect(
+      verifySlackSignature(body, String(futureTs), sig2, SECRET, now),
+    ).toBe(false);
   });
 
   it('rejects missing headers / empty inputs', () => {
-    expect(verifySlackSignature('x=y', undefined, 'sig', SECRET, now)).toBe(false);
-    expect(verifySlackSignature('x=y', String(now), undefined, SECRET, now)).toBe(false);
-    expect(verifySlackSignature('x=y', String(now), 'sig', '', now)).toBe(false);
-    expect(verifySlackSignature('x=y', 'not-a-number', 'sig', SECRET, now)).toBe(false);
+    expect(verifySlackSignature('x=y', undefined, 'sig', SECRET, now)).toBe(
+      false,
+    );
+    expect(
+      verifySlackSignature('x=y', String(now), undefined, SECRET, now),
+    ).toBe(false);
+    expect(verifySlackSignature('x=y', String(now), 'sig', '', now)).toBe(
+      false,
+    );
+    expect(
+      verifySlackSignature('x=y', 'not-a-number', 'sig', SECRET, now),
+    ).toBe(false);
   });
 
   it('uses constant-time comparison (no length-leak short-circuit)', () => {
     const body = 'x=y';
     const ts = now;
-    expect(verifySlackSignature(body, String(ts), 'v0=short', SECRET, now)).toBe(false);
     expect(
-      verifySlackSignature(body, String(ts), 'v0=' + 'a'.repeat(64), SECRET, now),
+      verifySlackSignature(body, String(ts), 'v0=short', SECRET, now),
+    ).toBe(false);
+    expect(
+      verifySlackSignature(
+        body,
+        String(ts),
+        'v0=' + 'a'.repeat(64),
+        SECRET,
+        now,
+      ),
     ).toBe(false);
   });
 });

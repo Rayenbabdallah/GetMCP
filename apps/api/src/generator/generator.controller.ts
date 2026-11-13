@@ -30,7 +30,10 @@ export class GeneratorController {
       const spec = await this.generatorService.fetchSpec(body.openapiUrl);
       return await this.classifier.classify(org.organizationId, spec);
     } catch (err: any) {
-      throw new HttpException(err.message || 'classification failed', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        err.message || 'classification failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -52,11 +55,20 @@ export class GeneratorController {
   }
 
   @Post('generate')
-  async generateMcp(@CurrentOrg() org: AuthContext, @Body() request: GenerateDto) {
+  async generateMcp(
+    @CurrentOrg() org: AuthContext,
+    @Body() request: GenerateDto,
+  ) {
     try {
-      return await this.generatorService.generateTrustBoundaries(org.organizationId, request);
+      return await this.generatorService.generateTrustBoundaries(
+        org.organizationId,
+        request,
+      );
     } catch (err: any) {
-      throw new HttpException(err.message || 'generation failed', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        err.message || 'generation failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -66,11 +78,19 @@ export class GeneratorController {
     @Query('openapiUrl') openapiUrl: string,
     @Res() res: Response,
   ) {
-    if (!openapiUrl) throw new HttpException('openapiUrl is required', HttpStatus.BAD_REQUEST);
+    if (!openapiUrl)
+      throw new HttpException('openapiUrl is required', HttpStatus.BAD_REQUEST);
     try {
-      await this.generatorService.exportInfrastructureZip(org.organizationId, openapiUrl, res);
+      await this.generatorService.exportInfrastructureZip(
+        org.organizationId,
+        openapiUrl,
+        res,
+      );
     } catch (err: any) {
-      throw new HttpException(err.message || 'export failed', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        err.message || 'export failed',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

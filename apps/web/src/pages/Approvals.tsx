@@ -56,7 +56,9 @@ export function Approvals() {
     setRows(resp.data);
   }
 
-  useEffect(() => { load().catch(() => setRows([])); /* eslint-disable-next-line */ }, [filter]);
+  useEffect(() => { load().catch(() => setRows([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
 
   async function openDetail(p: Pending) {
     // Fetch the full row with approvals.

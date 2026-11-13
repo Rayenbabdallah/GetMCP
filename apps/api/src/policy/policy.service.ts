@@ -1,6 +1,11 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { Decision, EvalContext, evaluate, PolicyRuleLite } from './policy.engine';
+import {
+  Decision,
+  EvalContext,
+  evaluate,
+  PolicyRuleLite,
+} from './policy.engine';
 import { RateLimiter } from './rate-limiter';
 import { MetricsService } from '../metrics/metrics.service';
 import { BehavioralBaselineService } from './baseline.service';
@@ -68,7 +73,8 @@ export class PolicyService {
         .filter((r) => r.ruleType === 'BEHAVIORAL_ANOMALY')
         .map((r) => {
           const cfg = r.actionConfig as any;
-          return Number.isInteger(cfg?.baselineWindowDays) && cfg.baselineWindowDays > 0
+          return Number.isInteger(cfg?.baselineWindowDays) &&
+            cfg.baselineWindowDays > 0
             ? cfg.baselineWindowDays
             : 7;
         })
@@ -92,7 +98,6 @@ export class PolicyService {
         // Anomaly scoring failure must never block traffic — log and continue
         // as if the rule weren't there (the bypass branch in the engine will
         // kick in because sampleCount stays undefined → 0 < minSamples).
-        // eslint-disable-next-line no-console
         console.warn('[PolicyService] anomaly scoring failed:', err);
       }
     }

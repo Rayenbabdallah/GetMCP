@@ -26,7 +26,10 @@ export class AgentService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolve(organizationId: string, agentId: string): Promise<ResolvedAgent | null> {
+  async resolve(
+    organizationId: string,
+    agentId: string,
+  ): Promise<ResolvedAgent | null> {
     const key = `${organizationId}:${agentId}`;
     const now = Date.now();
     const cached = this.cache.get(key);

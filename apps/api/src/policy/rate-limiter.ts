@@ -17,7 +17,12 @@ interface Bucket {
 export class RateLimiter {
   private buckets = new Map<string, Bucket>();
 
-  consume(key: string, limit: number, windowMs: number, cost = 1): ConsumeResult {
+  consume(
+    key: string,
+    limit: number,
+    windowMs: number,
+    cost = 1,
+  ): ConsumeResult {
     if (limit <= 0 || windowMs <= 0) return { allowed: true, retryAfterMs: 0 };
     const now = Date.now();
     const refillPerMs = limit / windowMs;

@@ -31,7 +31,10 @@ export async function hashApiKey(plaintext: string): Promise<string> {
   return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`;
 }
 
-export async function verifyApiKey(plaintext: string, stored: string): Promise<boolean> {
+export async function verifyApiKey(
+  plaintext: string,
+  stored: string,
+): Promise<boolean> {
   const parts = stored.split('$');
   if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
   const salt = Buffer.from(parts[1], 'hex');

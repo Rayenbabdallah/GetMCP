@@ -28,7 +28,11 @@ export class OrgController {
     });
     const flags = await this.prisma.organization.findUnique({
       where: { id: ctx.organizationId },
-      select: { upstreamAuthHeader: true, slackBotToken: true, slackSigningSecret: true },
+      select: {
+        upstreamAuthHeader: true,
+        slackBotToken: true,
+        slackSigningSecret: true,
+      },
     });
     return {
       ...org,
@@ -43,26 +47,36 @@ export class OrgController {
     const data: Record<string, any> = {};
 
     if (body.name !== undefined) data.name = body.name;
-    if (body.upstreamBaseUrl !== undefined) data.upstreamBaseUrl = body.upstreamBaseUrl;
-    if (body.upstreamTimeoutMs !== undefined) data.upstreamTimeoutMs = body.upstreamTimeoutMs;
+    if (body.upstreamBaseUrl !== undefined)
+      data.upstreamBaseUrl = body.upstreamBaseUrl;
+    if (body.upstreamTimeoutMs !== undefined)
+      data.upstreamTimeoutMs = body.upstreamTimeoutMs;
 
     if (body.upstreamAuthHeader !== undefined) {
       data.upstreamAuthHeader =
-        body.upstreamAuthHeader === null ? null : encryptSecret(body.upstreamAuthHeader);
+        body.upstreamAuthHeader === null
+          ? null
+          : encryptSecret(body.upstreamAuthHeader);
     }
 
     if (body.slackBotToken !== undefined) {
-      data.slackBotToken = body.slackBotToken === null ? null : encryptSecret(body.slackBotToken);
+      data.slackBotToken =
+        body.slackBotToken === null ? null : encryptSecret(body.slackBotToken);
     }
     if (body.slackSigningSecret !== undefined) {
       data.slackSigningSecret =
-        body.slackSigningSecret === null ? null : encryptSecret(body.slackSigningSecret);
+        body.slackSigningSecret === null
+          ? null
+          : encryptSecret(body.slackSigningSecret);
     }
     if (body.slackDefaultChannel !== undefined) {
       data.slackDefaultChannel = body.slackDefaultChannel;
     }
 
-    await this.prisma.organization.update({ where: { id: ctx.organizationId }, data });
+    await this.prisma.organization.update({
+      where: { id: ctx.organizationId },
+      data,
+    });
     return this.me(ctx);
   }
 }

@@ -1,4 +1,9 @@
-import { evaluate, EvalContext, PolicyRuleLite, sortRules } from './policy.engine';
+import {
+  evaluate,
+  EvalContext,
+  PolicyRuleLite,
+  sortRules,
+} from './policy.engine';
 import { RateLimiter } from './rate-limiter';
 
 function rule(over: Partial<PolicyRuleLite>): PolicyRuleLite {
@@ -27,9 +32,21 @@ const baseCtx: EvalContext = {
 
 describe('sortRules', () => {
   it('orders by priority asc, then createdAt asc', () => {
-    const a = rule({ id: 'a', priority: 100, createdAt: new Date('2026-01-01') });
-    const b = rule({ id: 'b', priority: 50, createdAt: new Date('2026-01-02') });
-    const c = rule({ id: 'c', priority: 50, createdAt: new Date('2026-01-01') });
+    const a = rule({
+      id: 'a',
+      priority: 100,
+      createdAt: new Date('2026-01-01'),
+    });
+    const b = rule({
+      id: 'b',
+      priority: 50,
+      createdAt: new Date('2026-01-02'),
+    });
+    const c = rule({
+      id: 'c',
+      priority: 50,
+      createdAt: new Date('2026-01-01'),
+    });
     expect(sortRules([a, b, c]).map((r) => r.id)).toEqual(['c', 'b', 'a']);
   });
 });
@@ -47,8 +64,20 @@ describe('evaluate', () => {
 
   it('BLOCK is terminal — wins over later AWAITING_APPROVAL', () => {
     const rules = [
-      rule({ id: 'mut', priority: 200, ruleType: 'MUTATION_APPROVAL', targetMethod: 'POST', targetPath: '/v1/refunds' }),
-      rule({ id: 'blk', priority: 50, ruleType: 'BLOCK', targetMethod: 'POST', targetPath: '/v1/refunds' }),
+      rule({
+        id: 'mut',
+        priority: 200,
+        ruleType: 'MUTATION_APPROVAL',
+        targetMethod: 'POST',
+        targetPath: '/v1/refunds',
+      }),
+      rule({
+        id: 'blk',
+        priority: 50,
+        ruleType: 'BLOCK',
+        targetMethod: 'POST',
+        targetPath: '/v1/refunds',
+      }),
     ];
     const d = evaluate(rules, baseCtx, rl);
     expect(d.kind).toBe('block');
@@ -58,8 +87,20 @@ describe('evaluate', () => {
 
   it('ALLOWLIST short-circuits subsequent BLOCK', () => {
     const rules = [
-      rule({ id: 'allow', priority: 10, ruleType: 'ALLOWLIST', targetMethod: 'POST', targetPath: '/v1/refunds' }),
-      rule({ id: 'blk', priority: 100, ruleType: 'BLOCK', targetMethod: 'POST', targetPath: '/v1/refunds' }),
+      rule({
+        id: 'allow',
+        priority: 10,
+        ruleType: 'ALLOWLIST',
+        targetMethod: 'POST',
+        targetPath: '/v1/refunds',
+      }),
+      rule({
+        id: 'blk',
+        priority: 100,
+        ruleType: 'BLOCK',
+        targetMethod: 'POST',
+        targetPath: '/v1/refunds',
+      }),
     ];
     const d = evaluate(rules, baseCtx, rl);
     expect(d.kind).toBe('allow');
@@ -132,7 +173,9 @@ describe('evaluate', () => {
       actionConfig: { limit: 1, windowMs: 60_000, scope: 'agent+tenant' },
     });
     expect(evaluate([r], { ...baseCtx, tenantId: 'A' }, rl).kind).toBe('allow');
-    expect(evaluate([r], { ...baseCtx, tenantId: 'A' }, rl).kind).toBe('rate_limited');
+    expect(evaluate([r], { ...baseCtx, tenantId: 'A' }, rl).kind).toBe(
+      'rate_limited',
+    );
     expect(evaluate([r], { ...baseCtx, tenantId: 'B' }, rl).kind).toBe('allow');
   });
 
@@ -149,8 +192,22 @@ describe('evaluate', () => {
 
   it('bypassApproval skips MUTATION_APPROVAL but still honors BLOCK/RATE_LIMIT', () => {
     const rules = [
-      rule({ id: 'mut', priority: 50, ruleType: 'MUTATION_APPROVAL', targetMethod: 'POST', targetPath: '/v1/refunds', actionConfig: { channel: '#ops' } }),
-      rule({ id: 'rl', priority: 100, ruleType: 'RATE_LIMIT', targetMethod: '*', targetPath: '*', actionConfig: { limit: 1, windowMs: 60_000, scope: 'agent+tenant' } }),
+      rule({
+        id: 'mut',
+        priority: 50,
+        ruleType: 'MUTATION_APPROVAL',
+        targetMethod: 'POST',
+        targetPath: '/v1/refunds',
+        actionConfig: { channel: '#ops' },
+      }),
+      rule({
+        id: 'rl',
+        priority: 100,
+        ruleType: 'RATE_LIMIT',
+        targetMethod: '*',
+        targetPath: '*',
+        actionConfig: { limit: 1, windowMs: 60_000, scope: 'agent+tenant' },
+      }),
     ];
 
     // Without bypass: short-circuits at MUTATION_APPROVAL.
@@ -175,5 +232,49 @@ describe('evaluate', () => {
     expect(d.trace).toHaveLength(2);
     expect(d.trace[0]).toMatchObject({ ruleId: 'r1', matched: false });
     expect(d.trace[1]).toMatchObject({ ruleId: 'r2', matched: true });
+  });
+
+  it('skips rules with an unknown ruleType and keeps evaluating', () => {
+    const d = evaluate(
+      [
+        rule({ id: 'weird', ruleType: 'NOT_A_REAL_TYPE' as any, priority: 1 }),
+        rule({ id: 'blocker', ruleType: 'BLOCK', priority: 2 }),
+      ],
+      baseCtx,
+      rl,
+    );
+    expect(d.kind).toBe('block');
+    const skipped = d.trace.find((t) => t.ruleId === 'weird');
+    expect(skipped?.outcome).toBe('skipped');
+    expect(skipped?.detail).toContain('unknown rule type');
+  });
+
+  it('BEHAVIORAL_ANOMALY blocks with a fallback reason when none is supplied', () => {
+    const d = evaluate(
+      [
+        rule({
+          ruleType: 'BEHAVIORAL_ANOMALY' as any,
+          actionConfig: { minBaselineSamples: 1, onAnomaly: 'block' },
+        }),
+      ],
+      {
+        ...baseCtx,
+        anomalyScore: 1,
+        anomalyReason: null,
+        anomalyBaselineSampleCount: 10,
+      },
+      rl,
+    );
+    expect(d.kind).toBe('block');
+    if (d.kind === 'block') expect(d.reason).toContain('no detail');
+  });
+
+  it('BEHAVIORAL_ANOMALY only observes when the baseline sample count is missing', () => {
+    const d = evaluate(
+      [rule({ ruleType: 'BEHAVIORAL_ANOMALY' as any })],
+      { ...baseCtx, anomalyScore: 1 },
+      rl,
+    );
+    expect(d.kind).toBe('allow');
   });
 });

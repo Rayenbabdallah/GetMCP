@@ -11,7 +11,13 @@ import {
   MinLength,
 } from 'class-validator';
 
-const RULE_TYPES = ['ALLOWLIST', 'BLOCK', 'AUDIT', 'RATE_LIMIT', 'MUTATION_APPROVAL'] as const;
+const RULE_TYPES = [
+  'ALLOWLIST',
+  'BLOCK',
+  'AUDIT',
+  'RATE_LIMIT',
+  'MUTATION_APPROVAL',
+] as const;
 const SOURCES = ['internal_mcp', 'external_mcp'] as const;
 
 export class CreatePolicyDto {
@@ -25,7 +31,7 @@ export class CreatePolicyDto {
   description!: string;
 
   @IsIn(RULE_TYPES as unknown as string[])
-  ruleType!: typeof RULE_TYPES[number];
+  ruleType!: (typeof RULE_TYPES)[number];
 
   @IsString()
   @MaxLength(20)
@@ -69,7 +75,7 @@ export class UpdatePolicyDto {
 export class SimulateDto {
   @IsString() @MaxLength(20) method!: string;
   @IsString() @MaxLength(2048) path!: string;
-  @IsIn(SOURCES as unknown as string[]) source!: typeof SOURCES[number];
+  @IsIn(SOURCES as unknown as string[]) source!: (typeof SOURCES)[number];
   @IsOptional() @IsString() @MaxLength(200) agentId?: string | null;
   @IsOptional() @IsString() @MaxLength(200) tenantId?: string | null;
   @IsOptional() @IsString() @MaxLength(2000) reasoning?: string | null;

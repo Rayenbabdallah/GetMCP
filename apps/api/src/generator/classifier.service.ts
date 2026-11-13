@@ -56,7 +56,9 @@ export class ClassifierService {
     const useLlm = Boolean(process.env.ANTHROPIC_API_KEY);
     const fresh = useLlm
       ? await this.classifyWithLlm(spec).catch((err) => {
-          this.logger.warn(`LLM classify failed, falling back to heuristics: ${err.message}`);
+          this.logger.warn(
+            `LLM classify failed, falling back to heuristics: ${err.message}`,
+          );
           return this.classifyHeuristically(spec);
         })
       : this.classifyHeuristically(spec);
@@ -128,28 +130,34 @@ export class ClassifierService {
         method: input.method,
       },
     });
-    if (!existing) throw new Error('classification not found — classify the spec first');
+    if (!existing)
+      throw new Error('classification not found — classify the spec first');
     return this.prisma.endpointClassification.update({
       where: { id: existing.id },
       data: {
         overrideExposeExternally: input.exposeExternally,
         overrideBy: input.exposeExternally === null ? null : input.apiKeyId,
         overrideAt: input.exposeExternally === null ? null : new Date(),
-        overrideReason: input.exposeExternally === null ? null : (input.reason ?? null),
+        overrideReason:
+          input.exposeExternally === null ? null : (input.reason ?? null),
       },
     });
   }
 
   // Effective verdict applies override on top of classifier output.
   effectiveVerdict(c: ClassifiedEndpoint): boolean {
-    return c.overrideExposeExternally !== null && c.overrideExposeExternally !== undefined
+    return c.overrideExposeExternally !== null &&
+      c.overrideExposeExternally !== undefined
       ? Boolean(c.overrideExposeExternally)
       : c.exposeExternally;
   }
 
   private classifyHeuristically(spec: any): ClassifiedEndpoint[] {
     const out: ClassifiedEndpoint[] = [];
-    for (const [path, methods] of Object.entries(spec.paths) as [string, any][]) {
+    for (const [path, methods] of Object.entries(spec.paths) as [
+      string,
+      any,
+    ][]) {
       for (const [method, op] of Object.entries(methods)) {
         const v = heuristicClassify(path, method, op);
         out.push({
@@ -168,7 +176,10 @@ export class ClassifierService {
     const all: ClassifiedEndpoint[] = [];
 
     const flat: Array<{ path: string; method: string; op: any }> = [];
-    for (const [path, methods] of Object.entries(spec.paths) as [string, any][]) {
+    for (const [path, methods] of Object.entries(spec.paths) as [
+      string,
+      any,
+    ][]) {
       for (const [method, op] of Object.entries(methods)) {
         flat.push({ path, method: method.toLowerCase(), op });
       }
@@ -186,7 +197,12 @@ export class ClassifierService {
         } else {
           this.logger.warn(`LLM skipped ${key}, using heuristic`);
           const h = heuristicClassify(item.path, item.method, item.op);
-          all.push({ path: item.path, method: item.method, ...h, classifierSource: 'heuristic' });
+          all.push({
+            path: item.path,
+            method: item.method,
+            ...h,
+            classifierSource: 'heuristic',
+          });
         }
       }
     }
@@ -209,11 +225,13 @@ export class ClassifierService {
         required: p?.required,
         description: p?.description,
       })),
-      requestBody: b.op?.requestBody ? { required: !!b.op.requestBody.required } : null,
+      requestBody: b.op?.requestBody
+        ? { required: !!b.op.requestBody.required }
+        : null,
     }));
 
     const system =
-      'You are GetMCP\'s endpoint risk classifier. For each OpenAPI endpoint, score data sensitivity (0-100), mutation impact (0-100), whether it has tenant scope, and whether the action is reversible. Then decide if it is safe to expose to external customer-facing AI agents. Be conservative — when in doubt, mark exposeExternally=false. Respond with JSON only, matching the schema in the user message.';
+      "You are GetMCP's endpoint risk classifier. For each OpenAPI endpoint, score data sensitivity (0-100), mutation impact (0-100), whether it has tenant scope, and whether the action is reversible. Then decide if it is safe to expose to external customer-facing AI agents. Be conservative — when in doubt, mark exposeExternally=false. Respond with JSON only, matching the schema in the user message.";
 
     const user = `Classify these endpoints. Respond with a JSON object: {"endpoints":[{"path","method","dataSensitivity","mutationImpact","hasTenantScope","reversible","exposeExternally","reasoning"}]}.
 
@@ -246,7 +264,8 @@ ${JSON.stringify(endpointsForPrompt, null, 2)}`;
 
     const out = new Map<string, ClassifiedEndpoint>();
     for (const e of json.endpoints) {
-      if (!e || typeof e.path !== 'string' || typeof e.method !== 'string') continue;
+      if (!e || typeof e.path !== 'string' || typeof e.method !== 'string')
+        continue;
       const method = e.method.toLowerCase();
       out.set(`${method} ${e.path}`, {
         path: e.path,
@@ -256,7 +275,10 @@ ${JSON.stringify(endpointsForPrompt, null, 2)}`;
         hasTenantScope: Boolean(e.hasTenantScope),
         reversible: Boolean(e.reversible),
         exposeExternally: Boolean(e.exposeExternally),
-        reasoning: typeof e.reasoning === 'string' ? e.reasoning : 'llm: (no reasoning provided)',
+        reasoning:
+          typeof e.reasoning === 'string'
+            ? e.reasoning
+            : 'llm: (no reasoning provided)',
         classifierSource: 'llm',
       });
     }
@@ -280,7 +302,9 @@ function clampInt(n: any, lo: number, hi: number): number {
 function extractJsonObject(text: string): any {
   // Strip markdown fences and locate the outer braces. Models occasionally
   // wrap JSON in ```json fences even when told not to.
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+  const cleaned = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '');
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1) return null;

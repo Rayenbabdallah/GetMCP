@@ -25,7 +25,12 @@ export interface ApprovalMessageInput {
   // Recent activity context — last N audit rows for this agent, surfaced so the
   // approver has enough context to decide without context-switching to the
   // dashboard. One short line per row.
-  recentActivity?: Array<{ method: string; path: string; actionTaken: string; timestamp: Date }>;
+  recentActivity?: Array<{
+    method: string;
+    path: string;
+    actionTaken: string;
+    timestamp: Date;
+  }>;
 }
 
 @Injectable()
@@ -58,7 +63,9 @@ export class SlackService {
     );
 
     if (!resp.data?.ok) {
-      throw new Error(`Slack chat.postMessage failed: ${resp.data?.error || 'unknown'}`);
+      throw new Error(
+        `Slack chat.postMessage failed: ${resp.data?.error || 'unknown'}`,
+      );
     }
     return { channel: resp.data.channel, ts: resp.data.ts };
   }
@@ -93,7 +100,10 @@ export class SlackService {
   }
 
   buildApprovalBlocks(i: ApprovalMessageInput) {
-    const ttlSec = Math.max(0, Math.floor((i.expiresAt.getTime() - Date.now()) / 1000));
+    const ttlSec = Math.max(
+      0,
+      Math.floor((i.expiresAt.getTime() - Date.now()) / 1000),
+    );
     const quorum = Math.max(1, i.quorumRequired ?? 1);
     const have = Math.max(0, i.quorumHave ?? 0);
     const requireJustification = Boolean(i.requireJustification);
@@ -101,7 +111,10 @@ export class SlackService {
     const blocks: any[] = [
       {
         type: 'header',
-        text: { type: 'plain_text', text: `:lock: Approval needed — ${i.method} ${i.path}` },
+        text: {
+          type: 'plain_text',
+          text: `:lock: Approval needed — ${i.method} ${i.path}`,
+        },
       },
       {
         type: 'section',
@@ -114,7 +127,10 @@ export class SlackService {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Reasoning*\n${i.reasoning || '_(none provided)_'}` },
+        text: {
+          type: 'mrkdwn',
+          text: `*Reasoning*\n${i.reasoning || '_(none provided)_'}`,
+        },
       },
     ];
 
@@ -136,15 +152,22 @@ export class SlackService {
     if (i.recentActivity && i.recentActivity.length > 0) {
       const lines = i.recentActivity.slice(0, 5).map((r) => {
         const ago = relativeTime(r.timestamp);
-        const verb = r.actionTaken === 'EXECUTED' ? ':white_check_mark:'
-          : r.actionTaken === 'BLOCKED' ? ':no_entry:'
-          : r.actionTaken === 'AWAITING_APPROVAL' ? ':hourglass:'
-          : ':grey_question:';
+        const verb =
+          r.actionTaken === 'EXECUTED'
+            ? ':white_check_mark:'
+            : r.actionTaken === 'BLOCKED'
+              ? ':no_entry:'
+              : r.actionTaken === 'AWAITING_APPROVAL'
+                ? ':hourglass:'
+                : ':grey_question:';
         return `${verb} \`${r.method} ${r.path}\` — ${ago}`;
       });
       blocks.push({
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Recent activity from this agent*\n${lines.join('\n')}` },
+        text: {
+          type: 'mrkdwn',
+          text: `*Recent activity from this agent*\n${lines.join('\n')}`,
+        },
       });
     }
 
@@ -159,7 +182,10 @@ export class SlackService {
         element: {
           type: 'plain_text_input',
           action_id: 'getmcp_justification',
-          placeholder: { type: 'plain_text', text: 'Why are you approving this?' },
+          placeholder: {
+            type: 'plain_text',
+            text: 'Why are you approving this?',
+          },
           max_length: 500,
         },
         optional: false,
@@ -214,8 +240,17 @@ export class SlackService {
     }
   }
 
-  buildDecidedBlocks(i: ApprovalMessageInput, decision: string, actor?: string) {
-    const verb = decision === 'APPROVED' ? ':white_check_mark: Approved' : decision === 'DENIED' ? ':no_entry: Denied' : ':alarm_clock: Expired';
+  buildDecidedBlocks(
+    i: ApprovalMessageInput,
+    decision: string,
+    actor?: string,
+  ) {
+    const verb =
+      decision === 'APPROVED'
+        ? ':white_check_mark: Approved'
+        : decision === 'DENIED'
+          ? ':no_entry: Denied'
+          : ':alarm_clock: Expired';
     const by = actor ? ` by <@${actor}>` : '';
     return [
       {
@@ -232,7 +267,10 @@ export class SlackService {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Reasoning*\n${i.reasoning || '_(none provided)_'}` },
+        text: {
+          type: 'mrkdwn',
+          text: `*Reasoning*\n${i.reasoning || '_(none provided)_'}`,
+        },
       },
     ];
   }

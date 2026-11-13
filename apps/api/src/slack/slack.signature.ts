@@ -24,7 +24,8 @@ export function verifySlackSignature(
   if (Math.abs(nowSec - ts) > TOLERANCE_SEC) return false;
 
   const base = `v0:${timestamp}:${rawBody}`;
-  const expected = 'v0=' + createHmac('sha256', signingSecret).update(base).digest('hex');
+  const expected =
+    'v0=' + createHmac('sha256', signingSecret).update(base).digest('hex');
 
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);

@@ -1,9 +1,27 @@
 // The original keyword/verb heuristics from §0, extracted as the fallback
 // classifier when ANTHROPIC_API_KEY is not set.
 
-const SENSITIVE_PATH_KEYWORDS = ['admin', 'internal', 'billing', 'sudo', 'logs', 'metrics', 'webhook', 'system', 'config'];
+const SENSITIVE_PATH_KEYWORDS = [
+  'admin',
+  'internal',
+  'billing',
+  'sudo',
+  'logs',
+  'metrics',
+  'webhook',
+  'system',
+  'config',
+];
 const DANGEROUS_VERBS = new Set(['delete', 'patch']);
-const PII_KEYWORDS = ['ssn', 'password', 'credit_card', 'card_number', 'social_security', 'secret', 'token'];
+const PII_KEYWORDS = [
+  'ssn',
+  'password',
+  'credit_card',
+  'card_number',
+  'social_security',
+  'secret',
+  'token',
+];
 
 function containsKeyword(text: string, keywords: string[]) {
   if (!text) return false;
@@ -20,7 +38,11 @@ export interface HeuristicVerdict {
   reasoning: string;
 }
 
-export function heuristicClassify(path: string, method: string, op: any): HeuristicVerdict {
+export function heuristicClassify(
+  path: string,
+  method: string,
+  op: any,
+): HeuristicVerdict {
   const reasons: string[] = [];
   const verb = method.toLowerCase();
 
@@ -44,32 +66,45 @@ export function heuristicClassify(path: string, method: string, op: any): Heuris
     dataSensitivity = Math.max(dataSensitivity, 80);
     reasons.push('sensitive description');
   }
-  if (Array.isArray(op?.tags) && containsKeyword(op.tags.join(' '), SENSITIVE_PATH_KEYWORDS)) {
+  if (
+    Array.isArray(op?.tags) &&
+    containsKeyword(op.tags.join(' '), SENSITIVE_PATH_KEYWORDS)
+  ) {
     dataSensitivity = Math.max(dataSensitivity, 80);
     reasons.push('sensitive tags');
   }
 
   const params = Array.isArray(op?.parameters) ? op.parameters : [];
   const piiParams = params.filter(
-    (p: any) => containsKeyword(p?.name ?? '', PII_KEYWORDS) || containsKeyword(p?.description ?? '', PII_KEYWORDS),
+    (p: any) =>
+      containsKeyword(p?.name ?? '', PII_KEYWORDS) ||
+      containsKeyword(p?.description ?? '', PII_KEYWORDS),
   );
   if (piiParams.length > 0) {
     dataSensitivity = Math.max(dataSensitivity, 95);
-    reasons.push(`PII parameters (${piiParams.map((p: any) => p.name).join(', ')})`);
+    reasons.push(
+      `PII parameters (${piiParams.map((p: any) => p.name).join(', ')})`,
+    );
   }
 
   const tenantParam = params.find((p: any) => {
     const name = (p?.name ?? '').toLowerCase();
-    return name.includes('tenant') || name.includes('user_id') || name.includes('customer');
+    return (
+      name.includes('tenant') ||
+      name.includes('user_id') ||
+      name.includes('customer')
+    );
   });
-  const hasTenantScope = Boolean(tenantParam) || /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(path);
+  const hasTenantScope =
+    Boolean(tenantParam) || /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(path);
 
   const reversible = !DANGEROUS_VERBS.has(verb);
 
   let exposeExternally = true;
   if (containsKeyword(path, SENSITIVE_PATH_KEYWORDS)) exposeExternally = false;
   if (DANGEROUS_VERBS.has(verb)) exposeExternally = false;
-  if (containsKeyword(description, SENSITIVE_PATH_KEYWORDS)) exposeExternally = false;
+  if (containsKeyword(description, SENSITIVE_PATH_KEYWORDS))
+    exposeExternally = false;
   if (piiParams.length > 0) exposeExternally = false;
   if ((verb === 'post' || verb === 'put') && !hasTenantScope) {
     exposeExternally = false;

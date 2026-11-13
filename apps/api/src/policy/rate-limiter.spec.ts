@@ -38,7 +38,8 @@ describe('RateLimiter (token bucket)', () => {
     rl.consume('k', 5, 1000);
     jest.advanceTimersByTime(60_000); // way more than window
     // bucket is back to full but cannot exceed limit
-    for (let i = 0; i < 5; i++) expect(rl.consume('k', 5, 1000).allowed).toBe(true);
+    for (let i = 0; i < 5; i++)
+      expect(rl.consume('k', 5, 1000).allowed).toBe(true);
     expect(rl.consume('k', 5, 1000).allowed).toBe(false);
   });
 

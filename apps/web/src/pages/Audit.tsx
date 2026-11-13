@@ -53,7 +53,9 @@ export function Audit() {
     setNextCursor(r.nextCursor);
   }
 
-  useEffect(() => { load({ reset: true }).catch(() => setRows([])); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { load({ reset: true }).catch(() => setRows([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function runVerify() {
     setVerifying(true);

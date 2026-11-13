@@ -1,3 +1,4 @@
+import { useState } from 'react';
 interface AnomalyPoint {
   id: string;
   timestamp: string;
@@ -31,7 +32,8 @@ export function AnomalyChart({ data, windowHours, threshold = 0.95, height = 220
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
-  const now = Date.now();
+  // Pin "now" at mount so render stays pure; the dashboard loads anomalies once.
+  const [now] = useState(() => Date.now());
   const windowMs = windowHours * 60 * 60 * 1000;
   const xMin = now - windowMs;
 

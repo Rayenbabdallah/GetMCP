@@ -69,13 +69,26 @@ interface DecisionBase {
 export type Decision =
   | ({ kind: 'allow' } & DecisionBase)
   | ({ kind: 'block'; rule: PolicyRuleLite; reason: string } & DecisionBase)
-  | ({ kind: 'awaiting_approval'; rule: PolicyRuleLite; reason: string; channel: string } & DecisionBase)
-  | ({ kind: 'rate_limited'; rule: PolicyRuleLite; retryAfterMs: number } & DecisionBase);
+  | ({
+      kind: 'awaiting_approval';
+      rule: PolicyRuleLite;
+      reason: string;
+      channel: string;
+    } & DecisionBase)
+  | ({
+      kind: 'rate_limited';
+      rule: PolicyRuleLite;
+      retryAfterMs: number;
+    } & DecisionBase);
 
 // MUTATION_APPROVAL, RATE_LIMIT, BEHAVIORAL_ANOMALY only apply to external
 // agents — internal is god-mode by design. BLOCK / ALLOWLIST / AUDIT apply
 // universally.
-const EXTERNAL_ONLY: ReadonlySet<string> = new Set(['MUTATION_APPROVAL', 'RATE_LIMIT', 'BEHAVIORAL_ANOMALY']);
+const EXTERNAL_ONLY: ReadonlySet<string> = new Set([
+  'MUTATION_APPROVAL',
+  'RATE_LIMIT',
+  'BEHAVIORAL_ANOMALY',
+]);
 
 export function sortRules(rules: PolicyRuleLite[]): PolicyRuleLite[] {
   return [...rules].sort((a, b) => {
@@ -94,7 +107,8 @@ export function evaluate(
 
   for (const rule of sorted) {
     const baseMatch =
-      methodMatches(rule.targetMethod, ctx.method) && pathMatches(rule.targetPath, ctx.path);
+      methodMatches(rule.targetMethod, ctx.method) &&
+      pathMatches(rule.targetPath, ctx.path);
     if (!baseMatch) {
       trace.push({
         ruleId: rule.id,
@@ -225,7 +239,8 @@ export function evaluate(
         const cfg = rule.actionConfig ?? {};
         const limit = Number.isInteger(cfg.limit) ? cfg.limit : 60;
         const windowMs = Number.isInteger(cfg.windowMs) ? cfg.windowMs : 60_000;
-        const scope = typeof cfg.scope === 'string' ? cfg.scope : 'agent+tenant';
+        const scope =
+          typeof cfg.scope === 'string' ? cfg.scope : 'agent+tenant';
         const key = buildBucketKey(scope, rule.id, ctx);
         const result = rateLimiter.consume(key, limit, windowMs);
         if (!result.allowed) {
@@ -256,9 +271,13 @@ export function evaluate(
       }
       case 'BEHAVIORAL_ANOMALY': {
         const cfg = rule.actionConfig ?? {};
-        const sensitivity = typeof cfg.sensitivity === 'number' ? cfg.sensitivity : 0.95;
-        const minSamples = Number.isInteger(cfg.minBaselineSamples) ? cfg.minBaselineSamples : 50;
-        const onAnomaly = typeof cfg.onAnomaly === 'string' ? cfg.onAnomaly : 'audit_only';
+        const sensitivity =
+          typeof cfg.sensitivity === 'number' ? cfg.sensitivity : 0.95;
+        const minSamples = Number.isInteger(cfg.minBaselineSamples)
+          ? cfg.minBaselineSamples
+          : 50;
+        const onAnomaly =
+          typeof cfg.onAnomaly === 'string' ? cfg.onAnomaly : 'audit_only';
 
         // PolicyService precomputes anomalyScore + sampleCount. If samples are
         // insufficient we bypass with a warning — new agents must accumulate
@@ -303,7 +322,10 @@ export function evaluate(
           continue;
         }
         if (onAnomaly === 'approval') {
-          const channel = typeof cfg.approverChannel === 'string' ? cfg.approverChannel : '#sec-ops';
+          const channel =
+            typeof cfg.approverChannel === 'string'
+              ? cfg.approverChannel
+              : '#sec-ops';
           trace.push({
             ruleId: rule.id,
             ruleName: rule.name,
@@ -352,7 +374,11 @@ export function evaluate(
   return { kind: 'allow', trace };
 }
 
-function buildBucketKey(scope: string, ruleId: string, ctx: EvalContext): string {
+function buildBucketKey(
+  scope: string,
+  ruleId: string,
+  ctx: EvalContext,
+): string {
   const parts: string[] = [ruleId, ctx.organizationId];
   if (scope.includes('agent')) parts.push(ctx.agentId ?? 'no-agent');
   if (scope.includes('tenant')) parts.push(ctx.tenantId ?? 'no-tenant');

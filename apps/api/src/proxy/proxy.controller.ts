@@ -47,14 +47,18 @@ export class ProxyController {
     const requestBytes = body ? Buffer.byteLength(JSON.stringify(body)) : 0;
     const reasoning = allHeaders['x-agent-reasoning'] || null;
     const tenantId = allHeaders['x-tenant-id'] || null;
-    const headerSource = allHeaders['x-agent-source'] as 'internal_mcp' | 'external_mcp' | undefined;
+    const headerSource = allHeaders['x-agent-source'] as
+      'internal_mcp' | 'external_mcp' | undefined;
     const agentIdHeader = allHeaders['x-agent-id'] || null;
 
     if (!agentIdHeader) {
       throw new UnauthorizedException('Missing x-agent-id header');
     }
 
-    const agent = await this.agentService.resolve(org.organizationId, agentIdHeader);
+    const agent = await this.agentService.resolve(
+      org.organizationId,
+      agentIdHeader,
+    );
     if (!agent) {
       this.audit.recordSafe({
         organizationId: org.organizationId,
@@ -90,7 +94,9 @@ export class ProxyController {
         responseBytes: null,
         latencyMs: Date.now() - startedAt,
       });
-      throw new ForbiddenException(agent.revokedAt ? 'Agent revoked' : 'Agent disabled');
+      throw new ForbiddenException(
+        agent.revokedAt ? 'Agent revoked' : 'Agent disabled',
+      );
     }
     if (headerSource && headerSource !== agent.source) {
       throw new ForbiddenException(
@@ -121,13 +127,21 @@ export class ProxyController {
       outcome = await this.proxyService.interceptAndExecute(req);
     } catch (e) {
       const status = e instanceof HttpException ? e.getStatus() : 500;
-      const responseBody = e instanceof HttpException ? (e.getResponse() as any) : null;
+      const responseBody =
+        e instanceof HttpException ? (e.getResponse() as any) : null;
       const reason =
-        responseBody?.reason ?? (e instanceof Error ? e.message : 'unknown error');
+        responseBody?.reason ??
+        (e instanceof Error ? e.message : 'unknown error');
 
       // Surface Retry-After for 429 from rate-limit decisions.
-      if (status === HttpStatus.TOO_MANY_REQUESTS && responseBody?.retryAfterMs) {
-        const seconds = Math.max(1, Math.ceil(responseBody.retryAfterMs / 1000));
+      if (
+        status === (HttpStatus.TOO_MANY_REQUESTS as number) &&
+        responseBody?.retryAfterMs
+      ) {
+        const seconds = Math.max(
+          1,
+          Math.ceil(responseBody.retryAfterMs / 1000),
+        );
         res.setHeader('Retry-After', String(seconds));
       }
 
@@ -143,7 +157,10 @@ export class ProxyController {
         reason,
         actionTaken: 'BLOCKED',
         upstreamStatus:
-          status === HttpStatus.BAD_GATEWAY || status === HttpStatus.GATEWAY_TIMEOUT ? status : null,
+          status === (HttpStatus.BAD_GATEWAY as number) ||
+          status === (HttpStatus.GATEWAY_TIMEOUT as number)
+            ? status
+            : null,
         requestBytes,
         responseBytes: null,
         latencyMs: Date.now() - startedAt,
@@ -171,12 +188,18 @@ export class ProxyController {
         anomalyScore: outcome.anomalyScore ?? null,
       });
 
-      if (outcome.status === 'AWAITING_APPROVAL' && outcome.decision.kind === 'awaiting_approval') {
+      if (
+        outcome.status === 'AWAITING_APPROVAL' &&
+        outcome.decision.kind === 'awaiting_approval'
+      ) {
         const orgRow = await this.prisma.organization.findUnique({
           where: { id: org.organizationId },
           select: { slackDefaultChannel: true },
         });
-        const channel = outcome.decision.channel || orgRow?.slackDefaultChannel || '#approvals';
+        const channel =
+          outcome.decision.channel ||
+          orgRow?.slackDefaultChannel ||
+          '#approvals';
         const pending = await this.approvals.createPending({
           organizationId: org.organizationId,
           agentId: agent.id,
@@ -240,7 +263,10 @@ export class ProxyController {
         source: req.source,
         tenantId,
         reasoning,
-        reason: action === 'INCOMPLETE' ? 'client disconnected before stream finished' : null,
+        reason:
+          action === 'INCOMPLETE'
+            ? 'client disconnected before stream finished'
+            : null,
         actionTaken: action,
         upstreamStatus: outcome.status,
         requestBytes,

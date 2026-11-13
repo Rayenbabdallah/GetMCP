@@ -39,7 +39,11 @@ describe('specHash', () => {
   it('changes when a parameter is added/removed', () => {
     const a = specHash(baseSpec);
     const mod = JSON.parse(JSON.stringify(baseSpec));
-    mod.paths['/v1/charges'].post.parameters.push({ name: 'currency', in: 'query', required: false });
+    mod.paths['/v1/charges'].post.parameters.push({
+      name: 'currency',
+      in: 'query',
+      required: false,
+    });
     expect(specHash(mod)).not.toBe(a);
   });
 

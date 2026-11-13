@@ -5,17 +5,25 @@ import { createHash } from 'crypto';
 export function canonicalJson(value: unknown): string {
   if (value === null || value === undefined) return 'null';
   if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error('Cannot canonicalize non-finite number');
+    if (!Number.isFinite(value))
+      throw new Error('Cannot canonicalize non-finite number');
     return JSON.stringify(value);
   }
-  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (Array.isArray(value)) return '[' + value.map(canonicalJson).join(',') + ']';
+  if (typeof value === 'string' || typeof value === 'boolean')
+    return JSON.stringify(value);
+  if (Array.isArray(value))
+    return '[' + value.map(canonicalJson).join(',') + ']';
   if (typeof value === 'object') {
     const keys = Object.keys(value as Record<string, unknown>).sort();
     return (
       '{' +
       keys
-        .map((k) => JSON.stringify(k) + ':' + canonicalJson((value as Record<string, unknown>)[k]))
+        .map(
+          (k) =>
+            JSON.stringify(k) +
+            ':' +
+            canonicalJson((value as Record<string, unknown>)[k]),
+        )
         .join(',') +
       '}'
     );

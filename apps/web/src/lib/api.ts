@@ -55,7 +55,7 @@ export async function api<T = any>(path: string, opts: RequestOpts = {}): Promis
 
   if (opts.raw) return res as any;
 
-  let data: any = null;
+  let data: any;
   const ctype = res.headers.get('content-type') ?? '';
   if (ctype.includes('application/json')) {
     data = await res.json().catch(() => null);

@@ -86,11 +86,17 @@ export class ProxyService {
     const { method, path, source, headers, organizationId } = req;
     if (!organizationId) {
       throw new HttpException(
-        { allowed: false, status: 'BLOCKED', reason: 'Missing organization context' },
+        {
+          allowed: false,
+          status: 'BLOCKED',
+          reason: 'Missing organization context',
+        },
         HttpStatus.UNAUTHORIZED,
       );
     }
-    this.logger.log(`Intercepting [${method}] ${path} from ${source} (org=${organizationId})`);
+    this.logger.log(
+      `Intercepting [${method}] ${path} from ${source} (org=${organizationId})`,
+    );
     const startTime = process.hrtime();
 
     const decision = await this.policy.evaluate({
@@ -105,7 +111,9 @@ export class ProxyService {
     });
 
     if (decision.kind === 'block') {
-      this.logger.warn(`Blocked by Rule [${decision.rule.name}]: ${decision.reason}`);
+      this.logger.warn(
+        `Blocked by Rule [${decision.rule.name}]: ${decision.reason}`,
+      );
       throw new HttpException(
         {
           allowed: false,
@@ -153,7 +161,9 @@ export class ProxyService {
 
     const diff = process.hrtime(startTime);
     const latencyMs = (diff[0] * 1e9 + diff[1]) / 1e6;
-    this.logger.log(`Policy + upstream completed in ${latencyMs.toFixed(2)}ms (status=${proxied.status})`);
+    this.logger.log(
+      `Policy + upstream completed in ${latencyMs.toFixed(2)}ms (status=${proxied.status})`,
+    );
 
     return proxied;
   }
@@ -161,7 +171,11 @@ export class ProxyService {
   private async forwardUpstream(req: AgentRequest): Promise<ProxiedResponse> {
     const org = await this.prisma.organization.findUnique({
       where: { id: req.organizationId },
-      select: { upstreamBaseUrl: true, upstreamAuthHeader: true, upstreamTimeoutMs: true },
+      select: {
+        upstreamBaseUrl: true,
+        upstreamAuthHeader: true,
+        upstreamTimeoutMs: true,
+      },
     });
 
     if (!org?.upstreamBaseUrl) {
@@ -177,7 +191,10 @@ export class ProxyService {
     }
 
     const url = joinUrl(org.upstreamBaseUrl, req.path);
-    const forwardHeaders = this.buildForwardHeaders(req.headers, org.upstreamAuthHeader);
+    const forwardHeaders = this.buildForwardHeaders(
+      req.headers,
+      org.upstreamAuthHeader,
+    );
 
     try {
       const response: AxiosResponse<Readable> = await axios.request<Readable>({
@@ -195,13 +212,17 @@ export class ProxyService {
       return {
         kind: 'proxied',
         status: response.status,
-        headers: this.filterResponseHeaders(response.headers as Record<string, any>),
+        headers: this.filterResponseHeaders(
+          response.headers as Record<string, any>,
+        ),
         stream: response.data,
       };
     } catch (err) {
       const ax = err as AxiosError;
       if (ax.code === 'ECONNABORTED' || ax.code === 'ETIMEDOUT') {
-        this.logger.warn(`Upstream timeout after ${org.upstreamTimeoutMs}ms: ${url}`);
+        this.logger.warn(
+          `Upstream timeout after ${org.upstreamTimeoutMs}ms: ${url}`,
+        );
         throw new HttpException(
           { allowed: false, status: 'BLOCKED', reason: 'Upstream timeout' },
           HttpStatus.GATEWAY_TIMEOUT,
@@ -209,7 +230,11 @@ export class ProxyService {
       }
       this.logger.error(`Upstream connection error to ${url}: ${ax.message}`);
       throw new HttpException(
-        { allowed: false, status: 'BLOCKED', reason: `Upstream unreachable: ${ax.message}` },
+        {
+          allowed: false,
+          status: 'BLOCKED',
+          reason: `Upstream unreachable: ${ax.message}`,
+        },
         HttpStatus.BAD_GATEWAY,
       );
     }
@@ -233,7 +258,9 @@ export class ProxyService {
     return out;
   }
 
-  private filterResponseHeaders(input: Record<string, any>): Record<string, string> {
+  private filterResponseHeaders(
+    input: Record<string, any>,
+  ): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(input)) {
       if (STRIP_RESPONSE_HEADERS.has(k.toLowerCase())) continue;
@@ -242,7 +269,6 @@ export class ProxyService {
     }
     return out;
   }
-
 }
 
 export function joinUrl(base: string, path: string): string {

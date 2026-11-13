@@ -20,7 +20,9 @@ function loadKey(): Buffer {
   }
   const buf = Buffer.from(hex, 'hex');
   if (buf.length !== KEY_LEN) {
-    throw new Error(`KEY_ENCRYPTION_KEY must be ${KEY_LEN} bytes (${KEY_LEN * 2} hex chars)`);
+    throw new Error(
+      `KEY_ENCRYPTION_KEY must be ${KEY_LEN} bytes (${KEY_LEN * 2} hex chars)`,
+    );
   }
   return buf;
 }
@@ -45,5 +47,7 @@ export function decryptSecret(stored: string): string {
   const ct = Buffer.from(parts[3], 'hex');
   const decipher = createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+  return Buffer.concat([decipher.update(ct), decipher.final()]).toString(
+    'utf8',
+  );
 }
