@@ -6,6 +6,26 @@ All notable changes to GetMCP. The format is based on [Keep a Changelog](https:/
 
 Track open work in [GitHub Issues](https://github.com/Rayenbabdallah/GetMCP/issues).
 
+## getmcp-cli [0.2.0] — 2026-11-16
+
+### Added
+- **Blocked body fields.** Kept writes no longer expose secret or privilege-granting fields (`password`, `role`, `is_admin`, `api_key`, …). They are removed from the tool schema and refused by the generated server at call time; operations that require such a field are left out. Opt out with `--allow fields`.
+
+### Changed
+- `readOnly` properties are no longer offered as tool inputs.
+
+## getmcp-cli [0.1.0] — 2026-11-13
+
+First release of the CLI on npm (`npx getmcp-cli <openapi-url-or-file>`).
+
+- Classifies every operation and leaves out destructive, money-moving, admin, credential, webhook, deprecated and binary-upload routes.
+- Curates the rest to 25 tools and generates a runnable stdio MCP server with a `REPORT.md`.
+- Reads the spec's security scheme so a single `API_KEY` covers bearer, header, query and Basic auth.
+
+### Platform
+- CI passes: dependency updates (55 → 4 audit findings), lint without auto-fix, `node_modules` untracked.
+- Fixed `GET /generator/export`, which could not produce a zip with `archiver` v8.
+
 ## [0.1.0] — 2026-05-15
 
 First public release. Apache 2.0.

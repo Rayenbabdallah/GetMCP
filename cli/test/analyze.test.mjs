@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, classify, compactSchema, listOperations } from '../src/analyze.mjs';
+import { analyze, classify, compactSchema, fieldRisk, listOperations, sensitiveFields } from '../src/analyze.mjs';
 import { authOf, baseUrlOf, stem } from '../src/spec.mjs';
 
 const spec = {
@@ -117,4 +117,109 @@ test('baseUrlOf handles servers, Swagger 2 hosts and unusable relative URLs', ()
 
 test('stem singularises common plurals', () => {
   assert.deepEqual(['issues', 'repositories', 'branches', 'status', 'access'].map(stem), ['issue', 'repository', 'branch', 'status', 'access']);
+});
+
+// ───────────── sensitive body fields ─────────────
+
+const fieldSpec = {
+  openapi: '3.0.0',
+  info: { title: 'Users', version: '1' },
+  components: {
+    schemas: {
+      Base: { type: 'object', properties: { is_admin: { type: 'boolean' } } },
+      Member: { type: 'object', properties: { name: { type: 'string' }, role: { type: 'string' } } },
+    },
+  },
+  paths: {
+    '/users/{id}': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+      patch: {
+        operationId: 'updateUser',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                allOf: [{ $ref: '#/components/schemas/Base' }],
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  role: { type: 'string' },
+                  profile: { type: 'object', properties: { bio: { type: 'string' }, password: { type: 'string' } } },
+                  members: { type: 'array', items: { $ref: '#/components/schemas/Member' } },
+                  page_token: { type: 'string' },
+                  api_key: { type: 'string' },
+                  last_login_token: { type: 'string', readOnly: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/users': {
+      post: {
+        operationId: 'createUser',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { type: 'object', required: ['email', 'password'], properties: { email: { type: 'string' }, password: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    },
+    '/notes': {
+      post: {
+        operationId: 'createNote',
+        requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { text: { type: 'string' } } } } } },
+      },
+    },
+  },
+};
+
+test('fieldRisk separates secrets, privilege grants and harmless names', () => {
+  for (const n of ['password', 'client_secret', 'apiKey', 'private_key', 'access_token', 'card_number', 'ssn_last_4']) {
+    assert.equal(fieldRisk(n), 'secret', n);
+  }
+  for (const n of ['role', 'roles', 'is_admin', 'permissions', 'base_role']) assert.equal(fieldRisk(n), 'privilege', n);
+  for (const n of ['name', 'page_token', 'next_page_token', 'idempotency_key', 'keyboard', 'description', 'title']) {
+    assert.equal(fieldRisk(n), null, n);
+  }
+});
+
+test('sensitiveFields walks nesting, arrays, allOf and skips readOnly', () => {
+  const body = fieldSpec.paths['/users/{id}'].patch.requestBody.content['application/json'].schema;
+  const paths = sensitiveFields(fieldSpec, body).map((f) => f.path).sort();
+  assert.deepEqual(paths, ['api_key', 'is_admin', 'members[].role', 'profile.password', 'role']);
+});
+
+test('a write keeps working but its sensitive fields are blocked', () => {
+  const r = analyze(fieldSpec, { all: true });
+  const update = r.tools.find((t) => t.name === 'update_user');
+  assert.deepEqual([...update.blocked].sort(), ['api_key', 'is_admin', 'members[].role', 'profile.password', 'role']);
+  assert.deepEqual([...update.route.body.blocked].sort(), [...update.blocked].sort());
+
+  const props = update.inputSchema.properties.body.properties;
+  assert.deepEqual(Object.keys(props).sort(), ['members', 'name', 'page_token', 'profile']);
+  assert.deepEqual(Object.keys(props.profile.properties), ['bio']);
+  assert.deepEqual(Object.keys(props.members.items.properties), ['name']);
+
+  const note = r.tools.find((t) => t.name === 'create_note');
+  assert.deepEqual(note.blocked, []);
+  assert.equal(note.route.body.blocked, undefined);
+  assert.equal(r.counts.blockedFields, 5);
+});
+
+test('an operation that requires a sensitive field is left out, unless allowed', () => {
+  const r = analyze(fieldSpec, { all: true });
+  assert.equal(r.tools.find((t) => t.name === 'create_user'), undefined);
+  const dropped = r.excluded.find((e) => e.path === '/users' && e.method === 'POST');
+  assert.equal(dropped.category, 'fields');
+  assert.match(dropped.reason, /password/);
+
+  const allowed = analyze(fieldSpec, { all: true, allow: ['fields'] });
+  assert.ok(allowed.tools.find((t) => t.name === 'create_user'));
+  assert.equal(allowed.counts.blockedFields, 0);
+  assert.ok('role' in allowed.tools.find((t) => t.name === 'update_user').inputSchema.properties.body.properties);
 });

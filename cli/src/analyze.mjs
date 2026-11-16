@@ -16,7 +16,8 @@ export const CATEGORIES = {
   credentials: 'credentials & secrets',
   webhooks: 'webhooks (data can be redirected out)',
   deprecated: 'deprecated',
-  unsupported: 'binary upload (not callable as a JSON tool)',
+  unsupported: 'binary upload (not a JSON tool)',
+  fields: 'requires a secret or privileged field',
 };
 
 const ADMIN_WORDS = new Set([
@@ -98,6 +99,94 @@ export function bodyOf(spec, o) {
     };
   }
   return null;
+}
+
+// ── body fields ──
+// A write can be safe as an operation and still let the caller set a field an
+// agent should never touch: PATCH /users/{id} with { "role": "admin" }.
+
+const SECRET_FIELD_WORDS = new Set([
+  'password', 'passwd', 'passphrase', 'secret', 'token', 'credential', 'apikey', 'otp', 'mfa', 'ssn', 'cvv', 'cvc',
+]);
+const PRIVILEGE_FIELD_WORDS = new Set(['role', 'permission', 'admin', 'superuser', 'privilege', 'sudo', 'staff']);
+const KEY_QUALIFIERS = new Set(['api', 'private', 'secret', 'access', 'signing', 'ssh', 'gpg', 'encryption', 'client']);
+const HARMLESS_TOKENS = new Set(['page', 'next', 'previous', 'prev', 'cursor', 'continuation', 'pagination', 'sync']);
+
+export const FIELD_KINDS = { secret: 'secret', privilege: 'privilege' };
+
+/** 'secret' | 'privilege' | null for one property name. */
+export function fieldRisk(name) {
+  const ws = words(name).map(stem);
+  const isPagingToken = ws.includes('token') && ws.some((w) => HARMLESS_TOKENS.has(w));
+  if (ws.some((w) => SECRET_FIELD_WORDS.has(w) && !(w === 'token' && isPagingToken))) return 'secret';
+  if (ws.includes('key') && ws.some((w) => KEY_QUALIFIERS.has(w))) return 'secret';
+  if (ws.includes('card') && ws.includes('number')) return 'secret';
+  if (ws.some((w) => PRIVILEGE_FIELD_WORDS.has(w))) return 'privilege';
+  return null;
+}
+
+/**
+ * Writable properties in a body schema whose names mark them as secret or
+ * privilege-granting. Paths are dotted, with `[]` for array items:
+ * "role", "profile.password", "members[].role".
+ * `required` is true only when the body cannot be sent without the field.
+ */
+export function sensitiveFields(spec, schema, maxDepth = 4) {
+  const found = new Map();
+  const walk = (node, path, required, depth, seen) => {
+    if (node && typeof node === 'object' && typeof node.$ref === 'string') {
+      if (seen.has(node.$ref)) return;
+      seen = new Set(seen).add(node.$ref);
+      node = deref(spec, node);
+    }
+    if (!node || typeof node !== 'object' || depth > maxDepth) return;
+
+    for (const part of Array.isArray(node.allOf) ? node.allOf : []) walk(part, path, required, depth, seen);
+    for (const key of ['oneOf', 'anyOf']) {
+      for (const variant of Array.isArray(node[key]) ? node[key] : []) walk(variant, path, false, depth, seen);
+    }
+    if (node.items) walk(node.items, `${path}[]`, false, depth + 1, seen);
+
+    const requiredHere = new Set(Array.isArray(node.required) ? node.required : []);
+    for (const [name, rawProp] of Object.entries(node.properties ?? {})) {
+      if (deref(spec, rawProp)?.readOnly) continue; // the server ignores it anyway
+      const here = path ? `${path}.${name}` : name;
+      const isRequired = required && requiredHere.has(name);
+      const kind = fieldRisk(name);
+      if (kind) {
+        found.set(here, { path: here, kind, required: isRequired || Boolean(found.get(here)?.required) });
+      } else {
+        walk(rawProp, here, isRequired, depth + 1, seen);
+      }
+    }
+  };
+  walk(schema, '', true, 0, new Set());
+  return [...found.values()];
+}
+
+/** Sensitive fields in this operation's request body (empty for reads). */
+export function bodyFields(spec, o) {
+  const body = bodyOf(spec, o);
+  return body?.schema ? sensitiveFields(spec, body.schema) : [];
+}
+
+/** Remove one dotted field path from a compacted schema, in place. */
+function pruneSchema(schema, segs) {
+  if (!schema || typeof schema !== 'object' || !segs.length) return;
+  for (const key of ['oneOf', 'anyOf']) for (const variant of schema[key] ?? []) pruneSchema(variant, segs);
+  const [seg, ...rest] = segs;
+  if (seg.endsWith('[]')) {
+    const key = seg.slice(0, -2);
+    pruneSchema((key ? schema.properties?.[key] : schema)?.items, rest);
+  } else if (rest.length) {
+    pruneSchema(schema.properties?.[seg], rest);
+  } else if (schema.properties) {
+    delete schema.properties[seg];
+    if (Array.isArray(schema.required)) {
+      schema.required = schema.required.filter((r) => r !== seg);
+      if (!schema.required.length) delete schema.required;
+    }
+  }
 }
 
 /**
@@ -312,7 +401,9 @@ export function compactSchema(spec, schema, depth, seen = new Set()) {
     if (!out.type) out.type = 'object';
     if (depth > 0) {
       out.properties = { ...(out.properties ?? {}) };
-      for (const [name, prop] of Object.entries(schema.properties).slice(0, 40)) {
+      // These schemas describe what a caller sends, so server-set (readOnly) properties are dropped.
+      const writable = Object.entries(schema.properties).filter(([, prop]) => !deref(spec, prop)?.readOnly);
+      for (const [name, prop] of writable.slice(0, 40)) {
         out.properties[name] = compactSchema(spec, prop, depth - 1, seen);
       }
       if (Array.isArray(schema.required)) {
@@ -387,12 +478,15 @@ function buildInput(spec, o, depth) {
   const b = bodyOf(spec, o);
   if (b && b.encoding !== 'unsupported') {
     const schema = compactSchema(spec, b.schema, depth);
+    // Blocked fields are hidden from the agent here and refused by the server at call time.
+    const blocked = o.blocked ?? [];
+    for (const path of blocked) pruneSchema(schema, path.split('.'));
     const empty = !schema.properties || Object.keys(schema.properties).length === 0;
     if (!empty || b.required) {
       const arg = argFor('body');
       properties[arg] = { type: 'object', ...schema, description: schema.description ?? 'Request body' };
       if (b.required) required.push(arg);
-      body = { arg, encoding: b.encoding };
+      body = { arg, encoding: b.encoding, ...(blocked.length ? { blocked } : {}) };
     }
   }
 
@@ -432,11 +526,20 @@ export function analyze(spec, { max = 25, readOnly = false, all = false, only = 
 
   for (const o of operations) {
     const verdict = classify(spec, o);
-    if (verdict.excluded && !allowed.has(verdict.excluded.category)) {
-      excluded.push({ method: o.method.toUpperCase(), path: o.path, ...verdict.excluded });
-    } else {
-      candidates.push({ ...o, tier: verdict.tier });
+    let reason = verdict.excluded && !allowed.has(verdict.excluded.category) ? verdict.excluded : null;
+
+    // Sensitive body fields: block them on the tool, or drop the operation
+    // when the API will not accept the request without one.
+    let blocked = [];
+    if (!reason && !allowed.has('fields')) {
+      const fields = bodyFields(spec, o);
+      const must = fields.find((f) => f.required);
+      if (must) reason = { category: 'fields', reason: `body requires "${must.path}" (${must.kind})` };
+      else blocked = fields.map((f) => f.path);
     }
+
+    if (reason) excluded.push({ method: o.method.toUpperCase(), path: o.path, ...reason });
+    else candidates.push({ ...o, tier: verdict.tier, blocked });
   }
 
   const eligible = candidates.filter((c) => (!readOnly || c.tier === 'read') && matchesOnly(c, only));
@@ -448,7 +551,7 @@ export function analyze(spec, { max = 25, readOnly = false, all = false, only = 
   const chosen = all ? [...scored].sort((a, b) => b.score - a.score) : curate(scored, max, curateOpts);
 
   const taken = new Set();
-  const tools = chosen.map((c) => ({ ...buildTool(spec, c, taken), tier: c.tier, group: groupOf(c) }));
+  const tools = chosen.map((c) => ({ ...buildTool(spec, c, taken), tier: c.tier, group: groupOf(c), blocked: c.blocked ?? [] }));
 
   // What a one-tool-per-endpoint converter would put in the agent's context.
   const takenAll = new Set();
@@ -468,6 +571,8 @@ export function analyze(spec, { max = 25, readOnly = false, all = false, only = 
       candidateWrites: candidates.filter((c) => c.tier === 'write').length,
       eligible: eligible.length,
       selected: tools.length,
+      blockedFields: tools.reduce((sum, t) => sum + t.blocked.length, 0),
+      toolsWithBlockedFields: tools.filter((t) => t.blocked.length).length,
     },
     tokens: { all: tokensAll, selected: tools.reduce((sum, t) => sum + tokensOf(t), 0) },
     tools,

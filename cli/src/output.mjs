@@ -46,12 +46,20 @@ export function printReport(r, { readOnly }) {
     `  ${green('Curated to')}       ${bold(r.counts.selected)} tools ${dim(`≈ ${kTokens(r.tokens.selected)} tokens`)}` +
       (saved > 0 ? `  ${bold(`${saved}% smaller`)}` : ''),
   );
+  if (r.counts.blockedFields) {
+    const names = [...new Set(r.tools.flatMap((t) => t.blocked))];
+    out.push(
+      `  ${yellow('Fields blocked')}   ${bold(r.counts.blockedFields)} on ${r.counts.toolsWithBlockedFields} write tools ` +
+        dim(clip(names.join(', '), 60)),
+    );
+  }
   out.push('');
 
   const nameWidth = Math.min(40, Math.max(...r.tools.map((t) => t.name.length), 4));
   for (const t of r.tools) {
     const badge = t.tier === 'read' ? green('R') : yellow('W');
-    out.push(`    ${badge}  ${clip(t.name, nameWidth).padEnd(nameWidth)}  ${dim(clip(`${t.route.method} ${t.route.path}`, 52))}`);
+    const minus = t.blocked.length ? yellow(`  −${clip(t.blocked.join(', −'), 40)}`) : '';
+    out.push(`    ${badge}  ${clip(t.name, nameWidth).padEnd(nameWidth)}  ${dim(clip(`${t.route.method} ${t.route.path}`, 52))}${minus}`);
   }
   out.push('');
   out.push(dim(`    R = read-only   W = write${readOnly ? '' : '   (run with --read-only to drop writes)'}`));
@@ -191,6 +199,15 @@ function reportMarkdown(r) {
     lines.push(`| ${t.tier === 'read' ? 'R' : 'W'} | \`${t.name}\` | \`${t.route.method} ${t.route.path}\` | ${t.description.replace(/\|/g, '\\|')} |`);
   }
   lines.push('');
+
+  const withBlocked = r.tools.filter((t) => t.blocked.length);
+  if (withBlocked.length) {
+    lines.push('## Blocked fields', '');
+    lines.push('These tools are kept, but the fields below are hidden from the agent and refused by the server if sent,');
+    lines.push('because their names mark them as secrets or privilege grants. Run with `--allow fields` to let them through.', '');
+    for (const t of withBlocked) lines.push(`- \`${t.name}\` (\`${t.route.method} ${t.route.path}\`): ${t.blocked.map((f) => `\`${f}\``).join(', ')}`);
+    lines.push('');
+  }
 
   lines.push('## Left out', '');
   for (const [category, items] of Object.entries(r.byCategory).sort((a, b) => b[1].length - a[1].length)) {

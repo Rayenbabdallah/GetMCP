@@ -1,6 +1,6 @@
 {
   "name": "getmcp-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn a big OpenAPI spec into a small, agent-ready MCP server, with the dangerous endpoints left out.",
   "keywords": [
     "mcp",

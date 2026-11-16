@@ -32,11 +32,13 @@ GitHub v3 REST API 1.1.4
       129  credentials & secrets                    POST /app/installations/{installation_id}/acc…
        38  deprecated                               GET /assignments/{assignment_id}
        28  webhooks (data can be redirected out)    GET /app/hook/config
+        6  requires a secret or privileged field    POST /orgs/{org}/copilot-spaces/{space_number…
         3  admin / internal                         GET /repos/{owner}/{repo}/branches/{branch}/p…
-        2  binary upload                            POST /markdown/raw
+        2  binary upload (not a JSON tool)          POST /markdown/raw
 
-  Safe candidates  904 (572 read, 332 write)
-  Curated to       25 tools ≈ 6.3k tokens  98% smaller
+  Safe candidates  898 (572 read, 326 write)
+  Curated to       25 tools ≈ 6.2k tokens  98% smaller
+  Fields blocked   1 on 1 write tools permission
 
     R  repos_get                     GET /repos/{owner}/{repo}
     W  pulls_create                  POST /repos/{owner}/{repo}/pulls
@@ -50,8 +52,8 @@ GitHub v3 REST API 1.1.4
 
 | Spec | Operations | Left out | Kept | Tool definitions |
 |---|---|---|---|---|
-| GitHub REST | 1,280 | 376 | 25 | ~263k tokens → ~6k |
-| Stripe | 612 | 168 | 25 | ~176k tokens → ~10k |
+| GitHub REST | 1,280 | 382 | 25 | ~263k tokens → ~6k |
+| Stripe | 612 | 170 | 25 | ~176k tokens → ~10k |
 | Petstore | 19 | 5 | 14 | ~1.7k tokens → ~1.3k |
 
 Token figures are estimates (characters ÷ 4).
@@ -59,8 +61,9 @@ Token figures are estimates (characters ÷ 4).
 ## What it does
 
 1. **Classifies** every operation and drops the ones an agent should not have: destructive or irreversible actions, money movement, admin and internal routes, credentials and secrets, webhooks, deprecated routes, binary uploads.
-2. **Curates** the safe ones down to 25, balanced across resources, with about a third able to write. Steer it with `--only issues,pulls,search`, or keep reads only with `--read-only`.
-3. **Generates** a runnable stdio MCP server, plus a `REPORT.md` listing every tool kept and every operation left out, with the reason.
+2. **Blocks sensitive fields** on the writes it keeps. `PATCH /users/{id}` stays usable, but `role`, `password` or `is_admin` in the body are hidden from the agent and refused by the server.
+3. **Curates** the safe ones down to 25, balanced across resources, with about a third able to write. Steer it with `--only issues,pulls,search`, or keep reads only with `--read-only`.
+4. **Generates** a runnable stdio MCP server, plus a `REPORT.md` listing every tool kept and every operation left out, with the reason.
 
 ```bash
 npx getmcp-cli <openapi-url-or-file> --dry-run     # see the report first; writes nothing

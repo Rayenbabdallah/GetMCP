@@ -145,3 +145,65 @@ test('GETMCP_READ_ONLY hides and refuses writes', async () => {
     assert.match(refused.text, /Refused/);
   });
 });
+
+test('blocked body fields are hidden from the agent and refused by the server', async () => {
+  const dir = join(TMP, 'fields');
+  mkdirSync(dir, { recursive: true });
+  const spec = {
+    openapi: '3.0.0',
+    info: { title: 'Users', version: '1' },
+    servers: [{ url: base }],
+    paths: {
+      '/users/{id}': {
+        patch: {
+          operationId: 'updateUser',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    role: { type: 'string' },
+                    members: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, role: { type: 'string' } } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+  writeFileSync(join(dir, 'spec.json'), JSON.stringify(spec));
+  execFileSync(process.execPath, [CLI, join(dir, 'spec.json'), '--out', join(dir, 'server')], { stdio: 'ignore' });
+
+  const client = new Client({ name: 'e2e', version: '0' });
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(dir, 'server', 'server.mjs')], stderr: 'ignore' }));
+  try {
+    const { tools } = await client.listTools();
+    const body = tools[0].inputSchema.properties.body;
+    assert.deepEqual(Object.keys(body.properties).sort(), ['members', 'name']);
+    assert.deepEqual(Object.keys(body.properties.members.items.properties), ['name']);
+
+    const call = (args) => client.callTool({ name: 'update_user', arguments: args });
+
+    const ok = await call({ id: '7', body: { name: 'Ada' } });
+    assert.equal(Boolean(ok.isError), false);
+    assert.equal(JSON.parse(ok.content[0].text.replace(/^HTTP \d+\n/, '')).body, '{"name":"Ada"}');
+
+    const topLevel = await call({ id: '7', body: { name: 'Ada', role: 'admin' } });
+    assert.equal(topLevel.isError, true);
+    assert.match(topLevel.content[0].text, /Refused: update_user may not set role/);
+
+    const nested = await call({ id: '7', body: { members: [{ name: 'Bo' }, { name: 'Cy', role: 'owner' }] } });
+    assert.equal(nested.isError, true);
+    assert.match(nested.content[0].text, /members\[\]\.role/);
+
+    const harmlessArray = await call({ id: '7', body: { members: [{ name: 'Bo' }] } });
+    assert.equal(Boolean(harmlessArray.isError), false);
+  } finally {
+    await client.close();
+  }
+});

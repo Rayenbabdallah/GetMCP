@@ -14,19 +14,21 @@ you can plug into Claude Code, Claude Desktop, Cursor, or any other MCP client.
 Most OpenAPI-to-MCP converters emit one tool per endpoint. On a real API that means hundreds of tools: the agent's
 context fills up, tool selection gets worse, and `DELETE /repos/{owner}/{repo}` is sitting right there.
 
-`getmcp` makes three decisions for you:
+`getmcp` makes four decisions for you:
 
 1. **Classify.** Every operation is checked for reasons an agent should not have it: destructive or irreversible
    actions, money movement, admin and internal routes, credentials and secrets, webhooks, deprecated routes, binary
    uploads.
-2. **Curate.** The safe ones are ranked and cut to 25, balanced across resources, with about a third able to write.
-3. **Generate.** A runnable stdio MCP server, plus a `REPORT.md` listing every tool kept and every operation left out,
+2. **Block sensitive fields.** A kept write can still carry a field an agent should never set. Those fields are
+   hidden from the tool and refused by the server.
+3. **Curate.** The safe ones are ranked and cut to 25, balanced across resources, with about a third able to write.
+4. **Generate.** A runnable stdio MCP server, plus a `REPORT.md` listing every tool kept and every operation left out,
    with the reason.
 
 | Spec | Operations | Left out | Kept | Tool definitions |
 |---|---|---|---|---|
-| GitHub REST | 1,280 | 376 | 25 | ~263k tokens → ~6k |
-| Stripe | 612 | 168 | 25 | ~176k tokens → ~10k |
+| GitHub REST | 1,280 | 382 | 25 | ~263k tokens → ~6k |
+| Stripe | 612 | 170 | 25 | ~176k tokens → ~10k |
 | Petstore | 19 | 5 | 14 | ~1.7k tokens → ~1.3k |
 
 Token figures are estimates (characters ÷ 4).
@@ -53,7 +55,7 @@ For other clients, the generated `README.md` has the `mcpServers` JSON block.
 --read-only      Keep GET operations only
 --all            Keep every safe operation instead of curating
 --allow <a,b>    Let a risky category back in:
-                 destructive, money, admin, credentials, webhooks, deprecated, unsupported
+                 destructive, money, admin, credentials, webhooks, deprecated, unsupported, fields
 --out <dir>      Where to write the server (default ./<api-name>-mcp)
 --dry-run        Print the report, write nothing
 --json           Print the report as JSON
@@ -77,6 +79,25 @@ Start with `--dry-run` to see the report, then steer with `--only` if the defaul
 | `GETMCP_READ_ONLY` | Set to `1` to hide and refuse every write tool. |
 | `GETMCP_MAX_CHARS` | Cap on response text returned to the agent. |
 
+## Blocked fields
+
+An operation can be safe while one of its fields is not. `PATCH /users/{id}` is an ordinary update until the body
+contains `"role": "admin"`.
+
+For every write it keeps, `getmcp` reads the request body schema (nested objects, arrays, `allOf`/`oneOf`) and looks
+for property names that mark a secret (`password`, `client_secret`, `api_key`, `access_token`, `ssn`) or a privilege
+grant (`role`, `permissions`, `is_admin`). Then:
+
+- **Optional field:** the tool is kept. The field is removed from the schema the agent sees, and the generated
+  server refuses any call that sends it anyway, so the block does not depend on the agent behaving.
+- **Required field:** the operation is left out, since it cannot be called without it.
+
+`REPORT.md` lists every blocked field per tool. `--allow fields` turns the check off. Pagination tokens and
+`readOnly` properties are ignored.
+
+On GitHub this blocks 79 fields across 29 writes and leaves out 6 operations; on Stripe, 52 fields across 26 writes
+and 2 operations.
+
 ## How tools are chosen
 
 Ranking is deterministic and uses only the spec:
@@ -91,6 +112,7 @@ Ranking is deterministic and uses only the spec:
 
 - Ranking cannot know your use case. `--only` is the steering wheel.
 - Classification is keyword-based and errs toward leaving things out. Check `REPORT.md`, then use `--allow`.
+- Field blocking only knows fields the spec declares. An undocumented field the API happens to accept is not caught.
 - Local `$ref`s only. JSON and form-encoded request bodies only. stdio transport only.
 - OAuth flows are not handled: pass an access token as `API_KEY`.
 

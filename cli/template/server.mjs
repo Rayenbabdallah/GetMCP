@@ -35,6 +35,26 @@ if (process.env.API_HEADERS) {
 
 const tools = new Map(manifest.tools.map((t) => [t.name, t]));
 
+/** Does `value` set the field at this dotted path? `[]` segments step into array items. */
+function setsField(value, segs) {
+  if (!segs.length) return true;
+  if (value === null || typeof value !== 'object') return false;
+  const [seg, ...rest] = segs;
+  if (seg.endsWith('[]')) {
+    const key = seg.slice(0, -2);
+    const items = key ? value[key] : value;
+    return Array.isArray(items) && items.some((item) => setsField(item, rest));
+  }
+  return Object.hasOwn(value, seg) && setsField(value[seg], rest);
+}
+
+/** Blocked body fields (secrets, privilege grants) that this call tries to set. */
+function blockedFieldsIn(route, args) {
+  const payload = route.body ? args[route.body.arg] : undefined;
+  if (payload === undefined) return [];
+  return (route.body.blocked ?? []).filter((path) => setsField(payload, path.split('.')));
+}
+
 /** Flatten nested values the way form / deepObject encoding expects: a[b][0]=c */
 function flatten(prefix, value, out) {
   if (value === undefined || value === null) return;
@@ -110,6 +130,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!tool) return fail(`Unknown tool: ${request.params.name}`);
   if (READ_ONLY && !tool.annotations?.readOnlyHint) {
     return fail(`Refused: ${tool.name} is a write and this server is running with GETMCP_READ_ONLY.`);
+  }
+
+  const blocked = blockedFieldsIn(tool.route, request.params.arguments ?? {});
+  if (blocked.length) {
+    return fail(
+      `Refused: ${tool.name} may not set ${blocked.join(', ')}. These fields are blocked because they are secrets or grant privileges. Remove them and try again.`,
+    );
   }
 
   try {
